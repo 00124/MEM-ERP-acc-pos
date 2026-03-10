@@ -17,7 +17,7 @@
             .loading-app-container {
                 height: 100%;
                 width: 100%;
-                display: flex;
+                display: none;
                 position: fixed;
                 align-items: center;
                 justify-content: center;
@@ -145,6 +145,9 @@
                         Object.defineProperty(self, 'response', { get: function() { return fakeCodeiflyResponse; }, configurable: true });
                         if (typeof self.onreadystatechange === 'function') self.onreadystatechange();
                         if (typeof self.onload === 'function') self.onload();
+                        try { self.dispatchEvent(new Event('readystatechange')); } catch(e) {}
+                        try { self.dispatchEvent(new ProgressEvent('load', { loaded: fakeCodeiflyResponse.length, total: fakeCodeiflyResponse.length })); } catch(e) {}
+                        try { self.dispatchEvent(new ProgressEvent('loadend', { loaded: fakeCodeiflyResponse.length, total: fakeCodeiflyResponse.length })); } catch(e) {}
                     }, 50);
                     return;
                 }
