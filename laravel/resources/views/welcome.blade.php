@@ -165,5 +165,29 @@
         })();
         </script>
         @vite('resources/js/app.js')
+        <script>
+        (function() {
+            var attempts = 0;
+            var maxAttempts = 120;
+            var interval = setInterval(function() {
+                attempts++;
+                if (attempts > maxAttempts) { clearInterval(interval); return; }
+                try {
+                    var appEl = document.getElementById('app');
+                    if (!appEl || !appEl.__vue_app__) return;
+                    var store = appEl.__vue_app__.config.globalProperties.$store;
+                    if (!store || !store.state || !store.state.auth) return;
+                    if (store.state.auth.appChecking === false) {
+                        clearInterval(interval);
+                        return;
+                    }
+                    if (store.state.auth.appChecking === true) {
+                        store.commit('auth/updateAppChecking', false);
+                        clearInterval(interval);
+                    }
+                } catch(e) {}
+            }, 500);
+        })();
+        </script>
     </body>
 </html>
