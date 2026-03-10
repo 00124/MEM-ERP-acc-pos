@@ -33,13 +33,13 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "php -S 0.0.0.0:5000 -t /home/runner/workspace/laravel/public /home/runner/workspace/laravel/server.php"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace/laravel && php -S 0.0.0.0:5000 -t public server.php"
+waitForPort = 5000
 
 [userenv]
 
