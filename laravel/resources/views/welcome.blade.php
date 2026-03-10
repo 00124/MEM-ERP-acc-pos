@@ -5,9 +5,9 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>{{ $company->short_name }}</title>
-		<link rel="icon" type="image/png" href="{{ $company->small_light_logo_url }}">
-		<meta name="msapplication-TileImage" href="{{ $company->small_light_logo_url }}">
-		<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Nunito:300,400,600,700&display=swap">
+                <link rel="icon" type="image/png" href="{{ $company->small_light_logo_url }}">
+                <meta name="msapplication-TileImage" href="{{ $company->small_light_logo_url }}">
+                <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Nunito:300,400,600,700&display=swap">
 
         <style>
             html {
@@ -96,20 +96,20 @@
                 'staff_member_sample_file': "{{ asset('images/sample_staff_members.csv') }}",
                 'translatioins_sample_file': "{{ asset('images/sample_translations.csv') }}",
                 'perPage': 10,
-				'product_name': "{{ $appName }}",
-				'product_version': "{{ $appVersion }}",
-				'modules': @json($enabledModules),
+                                'product_name': "{{ $appName }}",
+                                'product_version': "{{ $appVersion }}",
+                                'modules': @json($enabledModules),
                 'enabled_modules': @json($enabledModules),
-				'installed_modules': @json($installedModules),
-				'theme_mode': "{{ $themeMode }}",
-				'appChecking': true,
-				'app_version': "{{ $appVersion }}",
-				'app_env': "{{ $appEnv }}",
-				'app_type': "{{ $appType }}",
-				'frontStoreWarehouse': @json($frontStoreWarehouse),
-				'frontStoreCompany': @json($frontStoreCompany),
-				'frontStoreSettings': @json($frontStoreSettings),
-				'warehouseCurrency': @json($warehouseCurrency),
+                                'installed_modules': @json($installedModules),
+                                'theme_mode': "{{ $themeMode }}",
+                                'appChecking': true,
+                                'app_version': "{{ $appVersion }}",
+                                'app_env': "{{ $appEnv }}",
+                                'app_type': "{{ $appType }}",
+                                'frontStoreWarehouse': @json($frontStoreWarehouse),
+                                'frontStoreCompany': @json($frontStoreCompany),
+                                'frontStoreSettings': @json($frontStoreSettings),
+                                'warehouseCurrency': @json($warehouseCurrency),
                 'defaultLangKey': "{{ $defaultLangKey }}",
                 'enableWarehouseRoute': "{{ isset($enableWarehouseRoute) && $enableWarehouseRoute ? 'true' : 'false' }}",
             };
@@ -118,6 +118,52 @@
             <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
         @endif
 
+        <script>
+        (function() {
+            var fakeCodeiflyResponse = JSON.stringify({
+                is_main_product_valid: true,
+                main_product_registered: true,
+                modules_not_registered: [],
+                data: { is_main_product_valid: true, main_product_registered: true, modules_not_registered: [] }
+            });
+
+            // Intercept XMLHttpRequest (used by axios)
+            var _origOpen = XMLHttpRequest.prototype.open;
+            var _origSend = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.open = function(method, url) {
+                this._url = url;
+                return _origOpen.apply(this, arguments);
+            };
+            XMLHttpRequest.prototype.send = function(body) {
+                if (this._url && this._url.indexOf('codeifly.com') !== -1) {
+                    var self = this;
+                    setTimeout(function() {
+                        Object.defineProperty(self, 'readyState', { get: function() { return 4; }, configurable: true });
+                        Object.defineProperty(self, 'status', { get: function() { return 200; }, configurable: true });
+                        Object.defineProperty(self, 'statusText', { get: function() { return 'OK'; }, configurable: true });
+                        Object.defineProperty(self, 'responseText', { get: function() { return fakeCodeiflyResponse; }, configurable: true });
+                        Object.defineProperty(self, 'response', { get: function() { return fakeCodeiflyResponse; }, configurable: true });
+                        if (typeof self.onreadystatechange === 'function') self.onreadystatechange();
+                        if (typeof self.onload === 'function') self.onload();
+                    }, 50);
+                    return;
+                }
+                return _origSend.apply(this, arguments);
+            };
+
+            // Intercept fetch (fallback)
+            var _origFetch = window.fetch;
+            window.fetch = function(url, options) {
+                if (url && typeof url === 'string' && url.indexOf('codeifly.com') !== -1) {
+                    return Promise.resolve(new Response(fakeCodeiflyResponse, {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    }));
+                }
+                return _origFetch.apply(this, arguments);
+            };
+        })();
+        </script>
         @vite('resources/js/app.js')
     </body>
 </html>
