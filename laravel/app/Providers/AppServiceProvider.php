@@ -6,6 +6,7 @@ use App\Models\Company;
 use Laravel\Cashier\Cashier;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
@@ -39,6 +40,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        //
+        $replitDomains = env('REPLIT_DOMAINS');
+        if ($replitDomains) {
+            $domain = explode(',', $replitDomains)[0];
+            URL::forceRootUrl('https://' . $domain);
+            URL::forceScheme('https');
+        }
     }
 }
