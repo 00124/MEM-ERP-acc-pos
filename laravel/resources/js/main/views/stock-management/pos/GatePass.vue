@@ -9,10 +9,19 @@
     >
         <div id="gate-pass-content">
             <div style="max-width: 560px; margin: 0 auto; font-family: Arial, sans-serif; font-size: 13px;" v-if="order && order.xid">
-                <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
-                    <h2 style="margin: 0; font-size: 18px;">{{ selectedWarehouse.name }}</h2>
-                    <p style="margin: 2px 0; font-size: 12px;">{{ selectedWarehouse.address }}</p>
-                    <h3 style="margin: 6px 0 0; font-size: 15px; letter-spacing: 1px;">GATE PASS</h3>
+                <div style="border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px;">
+                    <img
+                        v-if="selectedWarehouse.logo_url"
+                        :src="selectedWarehouse.logo_url"
+                        :alt="selectedWarehouse.name"
+                        style="max-width: 90px; max-height: 70px; object-fit: contain; flex-shrink: 0;"
+                    />
+                    <div style="flex: 1; text-align: center;">
+                        <h2 style="margin: 0; font-size: 18px;">{{ selectedWarehouse.name }}</h2>
+                        <p style="margin: 2px 0; font-size: 12px;">{{ selectedWarehouse.address }}</p>
+                        <p v-if="selectedWarehouse.phone" style="margin: 2px 0; font-size: 12px;">{{ selectedWarehouse.phone }}</p>
+                        <h3 style="margin: 6px 0 0; font-size: 15px; letter-spacing: 1px;">GATE PASS</h3>
+                    </div>
                 </div>
 
                 <table style="width: 100%; margin-bottom: 10px; border-collapse: collapse;">
@@ -150,7 +159,8 @@ export default defineComponent({
                     body { font-family: Arial, sans-serif; font-size: 13px; margin: 20px; }
                     table { width: 100%; border-collapse: collapse; }
                     td { padding: 4px 5px; }
-                    @media print { body { margin: 0; } }
+                    img { max-width: 90px; max-height: 70px; object-fit: contain; }
+                    @media print { body { margin: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
                 </style>
                 </head><body>${content}</body></html>
             `);
