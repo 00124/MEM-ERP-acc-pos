@@ -94,39 +94,51 @@
                                         <span>{{ $t("menu.stock_management") }}</span>
                                 </span>
                         </template>
-                        <a-menu-item
-                                @click="
-                                        () => {
-                                                menuSelected();
-                                                $router.push({
-                                                        name: 'admin.stock.purchases.index',
-                                                });
-                                        }
-                                "
-                                key="purchases"
+                        <a-sub-menu
+                                key="purchases_submenu"
                                 v-if="
-                                        permsArray.includes('purchases_view') || permsArray.includes('admin')
-                                "
-                        >
-                                {{ $t("menu.purchases") }}
-                        </a-menu-item>
-                        <a-menu-item
-                                @click="
-                                        () => {
-                                                menuSelected();
-                                                $router.push({
-                                                        name: 'admin.stock.grn.index',
-                                                });
-                                        }
-                                "
-                                key="grn"
-                                v-if="
+                                        permsArray.includes('purchases_view') ||
                                         permsArray.includes('grn_view') ||
                                         permsArray.includes('admin')
                                 "
                         >
-                                GRN
-                        </a-menu-item>
+                                <template #title>
+                                        <span>{{ $t("menu.purchases") }}</span>
+                                </template>
+                                <a-menu-item
+                                        @click="
+                                                () => {
+                                                        menuSelected();
+                                                        $router.push({
+                                                                name: 'admin.stock.purchases.index',
+                                                        });
+                                                }
+                                        "
+                                        key="purchases"
+                                        v-if="
+                                                permsArray.includes('purchases_view') || permsArray.includes('admin')
+                                        "
+                                >
+                                        {{ $t("menu.purchases") }}
+                                </a-menu-item>
+                                <a-menu-item
+                                        @click="
+                                                () => {
+                                                        menuSelected();
+                                                        $router.push({
+                                                                name: 'admin.stock.grn.index',
+                                                        });
+                                                }
+                                        "
+                                        key="grn"
+                                        v-if="
+                                                permsArray.includes('grn_view') ||
+                                                permsArray.includes('admin')
+                                        "
+                                >
+                                        GRN
+                                </a-menu-item>
+                        </a-sub-menu>
                         <a-menu-item
                                 @click="
                                         () => {

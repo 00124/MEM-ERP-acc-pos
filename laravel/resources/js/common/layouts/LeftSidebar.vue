@@ -335,6 +335,7 @@
                         key="purchases"
                         v-if="
                             permsArray.includes('purchases_view') ||
+                            permsArray.includes('grn_view') ||
                             permsArray.includes('purchase_returns_view') ||
                             permsArray.includes('payment_out_view') ||
                             permsArray.includes('admin')
@@ -362,6 +363,23 @@
                             "
                         >
                             {{ $t("menu.purchases") }}
+                        </a-menu-item>
+                        <a-menu-item
+                            @click="
+                                () => {
+                                    menuSelected();
+                                    $router.push({
+                                        name: 'admin.stock.grn.index',
+                                    });
+                                }
+                            "
+                            key="grn"
+                            v-if="
+                                permsArray.includes('grn_view') ||
+                                permsArray.includes('admin')
+                            "
+                        >
+                            GRN
                         </a-menu-item>
                         <a-menu-item
                             @click="
