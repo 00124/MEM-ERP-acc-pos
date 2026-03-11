@@ -120,11 +120,20 @@
 
         <script>
         (function() {
+            var _appVer = (window.config && window.config.product_version) ? window.config.product_version : '4.3.3';
             var fakeCodeiflyResponse = JSON.stringify({
                 is_main_product_valid: true,
                 main_product_registered: true,
                 modules_not_registered: [],
-                data: { is_main_product_valid: true, main_product_registered: true, modules_not_registered: [] }
+                data: { is_main_product_valid: true, main_product_registered: true, modules_not_registered: [] },
+                product: {
+                    version: _appVer,
+                    verified: true,
+                    other_domain_verified: false,
+                    modules: []
+                },
+                offers: [],
+                settings: []
             });
 
             // Intercept XMLHttpRequest (used by axios)
