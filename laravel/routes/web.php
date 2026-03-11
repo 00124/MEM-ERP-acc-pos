@@ -116,6 +116,8 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::resource('custom-fields', 'CustomFieldController', $options);
         ApiRoute::resource('stock-adjustments', 'StockAdjustmentController', $options);
         ApiRoute::resource('purchases', 'PurchaseController', $options);
+        ApiRoute::resource('grn', 'GrnController', $options);
+        ApiRoute::get('grn/purchase-order/{id}', ['as' => 'api.grn.purchase-order', 'uses' => 'GrnController@purchaseOrderForGrn']);
         ApiRoute::resource('purchase-returns', 'PurchaseReturnsController', $options);
         ApiRoute::resource('stock-transfers', 'StockTransferController', $options);
         ApiRoute::resource('sales', 'SalesController', $options);

@@ -168,6 +168,14 @@ const fields = () => {
                 userType: "customers",
                 permission: "stock_transfers",
             };
+        } else if (orderType.value == "grn") {
+            pageObjectDetails = {
+                type: "grn",
+                langKey: "grn",
+                menuKey: "grn",
+                userType: "suppliers",
+                permission: "grn",
+            };
         }
 
         return pageObjectDetails;

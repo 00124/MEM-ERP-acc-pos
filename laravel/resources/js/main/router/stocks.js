@@ -67,6 +67,56 @@ export default [
                 },
             },
 
+            // GRN
+            {
+                path: "grn/create",
+                component: () =>
+                    import("../views/stock-management/grn/Create.vue"),
+                name: "admin.stock.grn.create",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "purchases",
+                    menuKey: (route) => "grn",
+                    permission: (route) => "grn_create",
+                },
+            },
+            {
+                path: "grn/edit/:id",
+                component: () =>
+                    import("../views/stock-management/grn/Edit.vue"),
+                name: "admin.stock.grn.edit",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "purchases",
+                    menuKey: (route) => "grn",
+                    permission: (route) => "grn_edit",
+                },
+            },
+            {
+                path: "grn/:id",
+                component: () =>
+                    import("../views/stock-management/grn/Details.vue"),
+                name: "admin.stock.grn.show",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "purchases",
+                    menuKey: (route) => "grn",
+                    permission: (route) => "grn_view",
+                },
+            },
+            {
+                path: "grn",
+                component: () =>
+                    import("../views/stock-management/grn/index.vue"),
+                name: "admin.stock.grn.index",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "purchases",
+                    menuKey: (route) => "grn",
+                    permission: (route) => "grn_view",
+                },
+            },
+
             // Purchase Returns
             {
                 path: "purchase-returns/edit/:id",
