@@ -679,7 +679,7 @@ class AuthController extends ApiBaseController
         // Warehouse Filter
         if ($warehouseId && $warehouseId != null) {
             $totalSales = $totalSales->where('orders.warehouse_id', $warehouseId);
-            $totalSalesReturns = $totalSalesReturns->where('warehouse_id', $warehouseId);
+            $totalSalesReturns = $totalSalesReturns->where('orders.warehouse_id', $warehouseId);
             $totalPurchases = $totalPurchases->where('orders.warehouse_id', $warehouseId);
             $totalPurchaseReturns = $totalPurchaseReturns->where('orders.warehouse_id', $warehouseId);
         }
