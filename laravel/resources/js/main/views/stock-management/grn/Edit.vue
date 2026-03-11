@@ -267,20 +267,19 @@ export default {
                 quantity: Number(p.quantity) || 0,
                 received_quantity: Number(p.received_quantity ?? p.quantity) || 0,
                 short_damaged_quantity: Number(p.short_damaged_quantity) || 0,
-                unit_price: p.unit_price || 0,
-                subtotal: p.subtotal || 0,
-                tax_rate: p.tax_rate || 0,
-                tax_type: p.tax_type || "exclusive",
-                discount_rate: p.discount_rate || 0,
-                total_discount: p.total_discount || 0,
-                total_tax: p.total_tax || 0,
-                single_unit_price: p.single_unit_price || p.unit_price,
+                unit_price: 0,
+                subtotal: 0,
+                tax_rate: 0,
+                tax_type: "exclusive",
+                discount_rate: 0,
+                total_discount: 0,
+                total_tax: 0,
+                single_unit_price: 0,
                 x_unit_id: p.x_unit_id || "",
-                x_tax_id: p.x_tax_id || "",
+                x_tax_id: "",
             }));
 
             const payload = {
-                ...formData,
                 order_date: dayjs(formData.order_date).format("YYYY-MM-DDTHH:mm:ssZ"),
                 order_status: "received",
                 user_id: formData.user_id,
@@ -296,8 +295,8 @@ export default {
                 approved_by_date: formData.approved_by_date ? dayjs(formData.approved_by_date).format("YYYY-MM-DD") : undefined,
                 product_items,
                 total_items: product_items.length,
-                subtotal: product_items.reduce((s, i) => s + (Number(i.subtotal) || 0), 0),
-                total: product_items.reduce((s, i) => s + (Number(i.subtotal) || 0), 0),
+                subtotal: 0,
+                total: 0,
                 all_payments: [],
             };
 
@@ -347,10 +346,16 @@ export default {
                         formData.approved_by_name = order.approved_by_name || "";
                         formData.approved_by_date = order.approved_by_date ? dayjs(order.approved_by_date) : null;
                         selectedProducts.value = items.map((it, i) => ({
-                            ...it,
+                            xid: it.xid,
+                            item_id: it.item_id || it.xid,
+                            name: it.name || it.product?.name || "",
+                            item_code: it.item_code || it.product?.item_code || "",
                             sn: i + 1,
-                            received_quantity: it.received_quantity ?? it.quantity,
-                            short_damaged_quantity: it.short_damaged_quantity ?? 0,
+                            quantity: Number(it.quantity) || 0,
+                            po_qty: Number(it.quantity) || 0,
+                            received_quantity: Number(it.received_quantity ?? it.quantity) || 0,
+                            short_damaged_quantity: Number(it.short_damaged_quantity) || 0,
+                            x_unit_id: it.x_unit_id || "",
                         }));
                     })
                     .catch(() => (fetchError.value = true))

@@ -307,9 +307,16 @@ export default {
                     formData.user_id = data.order?.x_user_id || data.order?.user_id;
                     formData.warehouse_id = data.order?.x_warehouse_id || data.order?.warehouse_id;
                     selectedProducts.value = (data.items || []).map((it, i) => ({
-                        ...it,
+                        xid: it.xid,
+                        item_id: it.item_id || it.xid,
+                        name: it.name,
+                        item_code: it.item_code || "",
                         sn: i + 1,
-                        short_damaged_quantity: it.short_damaged_quantity ?? 0,
+                        quantity: Number(it.quantity) || 0,
+                        po_qty: Number(it.quantity) || 0,
+                        received_quantity: Number(it.received_quantity ?? it.quantity) || 0,
+                        short_damaged_quantity: Number(it.short_damaged_quantity) || 0,
+                        x_unit_id: it.x_unit_id || "",
                     }));
                 })
                 .finally(() => (poLoading.value = false));
@@ -339,16 +346,16 @@ export default {
                 quantity: Number(p.quantity) || 0,
                 received_quantity: Number(p.received_quantity ?? p.quantity) || 0,
                 short_damaged_quantity: Number(p.short_damaged_quantity) || 0,
-                unit_price: Number(p.unit_price) || 0,
-                subtotal: Number(p.subtotal) || 0,
-                tax_rate: Number(p.tax_rate) || 0,
-                tax_type: p.tax_type || "exclusive",
-                discount_rate: Number(p.discount_rate) || 0,
-                total_discount: Number(p.total_discount) || 0,
-                total_tax: Number(p.total_tax) || 0,
-                single_unit_price: Number(p.single_unit_price || p.unit_price) || 0,
+                unit_price: 0,
+                subtotal: 0,
+                tax_rate: 0,
+                tax_type: "exclusive",
+                discount_rate: 0,
+                total_discount: 0,
+                total_tax: 0,
+                single_unit_price: 0,
                 x_unit_id: p.x_unit_id || "",
-                x_tax_id: p.x_tax_id || "",
+                x_tax_id: "",
             }));
 
             const orderDate = formData.order_date
@@ -361,8 +368,8 @@ export default {
                 warehouse_id: formData.warehouse_id,
                 product_items,
                 total_items: product_items.length,
-                subtotal: product_items.reduce((s, i) => s + (Number(i.subtotal) || 0), 0),
-                total: product_items.reduce((s, i) => s + (Number(i.subtotal) || 0), 0),
+                subtotal: 0,
+                total: 0,
                 all_payments: [],
             };
             if (formData.parent_order_id) payload.parent_order_id = formData.parent_order_id;
@@ -447,26 +454,18 @@ export default {
                 return;
             }
             const qty = Number(product.quantity) || 1;
-            const unitPrice = Number(product.unit_price) || Number(product.single_unit_price) || 0;
             selectedProducts.value = [
                 ...selectedProducts.value,
                 {
-                    ...product,
+                    xid: product.xid,
+                    name: product.name,
+                    item_code: product.item_code || "",
                     sn: selectedProducts.value.length + 1,
                     quantity: qty,
                     po_qty: qty,
                     received_quantity: qty,
                     short_damaged_quantity: 0,
-                    unit_price: unitPrice,
-                    single_unit_price: unitPrice,
-                    subtotal: unitPrice * qty,
-                    tax_rate: product.tax_rate || 0,
-                    tax_type: product.tax_type || "exclusive",
-                    discount_rate: product.discount_rate || 0,
-                    total_discount: product.total_discount || 0,
-                    total_tax: product.total_tax || 0,
                     x_unit_id: product.x_unit_id || "",
-                    x_tax_id: product.x_tax_id || "",
                 },
             ];
             productSearchSelected.value = null;
