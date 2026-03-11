@@ -121,7 +121,12 @@
                                 :key="item.xid"
                             >
                                 <td>{{ index + 1 }}</td>
-                                <td>{{ item.product.name }}</td>
+                                <td>
+                                    {{ item.product.name }}
+                                    <div v-if="item.warehouse && item.warehouse.name" style="font-size: 10px; color: #666; margin-top: 2px;">
+                                        📦 {{ item.warehouse.name }}
+                                    </div>
+                                </td>
                                 <td>
                                     {{
                                         item.quantity +

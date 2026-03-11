@@ -268,6 +268,17 @@
                                                     <template
                                                         v-if="
                                                             column.dataIndex ===
+                                                            'warehouse_name'
+                                                        "
+                                                    >
+                                                        <a-tag color="blue" v-if="record.warehouse_name" style="font-size: 11px;">
+                                                            {{ record.warehouse_name }}
+                                                        </a-tag>
+                                                        <span v-else style="color: #aaa; font-size: 11px;">—</span>
+                                                    </template>
+                                                    <template
+                                                        v-if="
+                                                            column.dataIndex ===
                                                             'subtotal'
                                                         "
                                                     >
@@ -1234,20 +1245,43 @@
         :centered="true"
         :maskClosable="true"
         :title="stockPopupProduct ? 'Stock Availability: ' + stockPopupProduct.name : 'Stock Availability'"
-        width="480px"
+        width="520px"
         @cancel="stockPopupVisible = false"
     >
         <a-spin :spinning="stockPopupLoading">
+            <p style="margin-bottom: 8px; color: #555; font-size: 13px;">
+                Select a warehouse to sell from. Only warehouses with available stock can be selected.
+            </p>
             <table style="width: 100%; border-collapse: collapse;">
                 <thead>
                     <tr style="background: #f0f0f0;">
+                        <th style="padding: 8px; text-align: center; border: 1px solid #ddd; width: 60px;">Select</th>
                         <th style="padding: 8px 12px; text-align: left; border: 1px solid #ddd;">Warehouse / Store</th>
-                        <th style="padding: 8px 12px; text-align: center; border: 1px solid #ddd;">Available Qty</th>
+                        <th style="padding: 8px 12px; text-align: center; border: 1px solid #ddd; width: 100px;">Available Qty</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="row in stockPopupData" :key="row.warehouse_xid">
-                        <td style="padding: 7px 12px; border: 1px solid #ddd;">{{ row.warehouse_name }}</td>
+                    <tr
+                        v-for="row in stockPopupData"
+                        :key="row.warehouse_xid"
+                        :style="{
+                            background: selectedPopupWarehouseXid === row.warehouse_xid ? '#e6f7ff' : 'transparent',
+                            cursor: row.stock_quantity > 0 ? 'pointer' : 'not-allowed',
+                            opacity: row.stock_quantity <= 0 ? 0.5 : 1,
+                        }"
+                        @click="row.stock_quantity > 0 && selectPopupWarehouse(row)"
+                    >
+                        <td style="padding: 7px 8px; text-align: center; border: 1px solid #ddd;">
+                            <a-radio
+                                :value="row.warehouse_xid"
+                                :checked="selectedPopupWarehouseXid === row.warehouse_xid"
+                                :disabled="row.stock_quantity <= 0"
+                                @change="selectPopupWarehouse(row)"
+                            />
+                        </td>
+                        <td style="padding: 7px 12px; border: 1px solid #ddd; font-weight: selectedPopupWarehouseXid === row.warehouse_xid ? 600 : 400;">
+                            {{ row.warehouse_name }}
+                        </td>
                         <td style="padding: 7px 12px; text-align: center; border: 1px solid #ddd;">
                             <a-tag :color="row.stock_quantity > 0 ? 'green' : 'red'">
                                 {{ row.stock_quantity }}
@@ -1255,16 +1289,19 @@
                         </td>
                     </tr>
                     <tr v-if="!stockPopupLoading && stockPopupData.length === 0">
-                        <td colspan="2" style="padding: 12px; text-align: center; color: #999;">No warehouse data found</td>
+                        <td colspan="3" style="padding: 12px; text-align: center; color: #999;">No warehouse data found</td>
                     </tr>
                 </tbody>
             </table>
+            <div v-if="!stockPopupLoading && selectedPopupWarehouseXid" style="margin-top: 10px; padding: 6px 10px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 4px; font-size: 13px;">
+                ✓ Selected: <strong>{{ selectedPopupWarehouseName }}</strong>
+            </div>
         </a-spin>
         <template #footer>
             <a-button @click="stockPopupVisible = false">Cancel</a-button>
             <a-button
                 type="primary"
-                :disabled="stockPopupLoading"
+                :disabled="stockPopupLoading || !selectedPopupWarehouseXid"
                 @click="addToCartFromPopup"
             >
                 Add to Cart
@@ -1363,6 +1400,8 @@ export default {
         const stockPopupProduct = ref(null);
         const stockPopupLoading = ref(false);
         const stockPopupData = ref([]);
+        const selectedPopupWarehouseXid = ref(null);
+        const selectedPopupWarehouseName = ref('');
 
         // Customer Quick Add state
         const quickAddPhone = ref('');
@@ -1392,11 +1431,18 @@ export default {
             selectedPosWarehouseName.value = w ? w.name : "";
         };
 
+        const selectPopupWarehouse = (row) => {
+            selectedPopupWarehouseXid.value = row.warehouse_xid;
+            selectedPopupWarehouseName.value = row.warehouse_name;
+        };
+
         const showStockPopup = (product) => {
             stockPopupProduct.value = product;
             stockPopupLoading.value = true;
             stockPopupVisible.value = true;
             stockPopupData.value = [];
+            selectedPopupWarehouseXid.value = null;
+            selectedPopupWarehouseName.value = '';
 
             axiosAdmin.post("pos/all-warehouse-stock", { product_xid: product.xid })
                 .then((resp) => {
@@ -1409,9 +1455,20 @@ export default {
         };
 
         const addToCartFromPopup = () => {
+            if (!selectedPopupWarehouseXid.value) {
+                message.warning('Please select a warehouse before adding to cart.');
+                return;
+            }
+            const selectedRow = stockPopupData.value.find(r => r.warehouse_xid === selectedPopupWarehouseXid.value);
             stockPopupVisible.value = false;
             if (stockPopupProduct.value) {
-                selectSaleProduct(stockPopupProduct.value);
+                const productWithWarehouse = {
+                    ...stockPopupProduct.value,
+                    warehouse_xid: selectedPopupWarehouseXid.value,
+                    warehouse_name: selectedPopupWarehouseName.value,
+                    stock_quantity: selectedRow ? selectedRow.stock_quantity : stockPopupProduct.value.stock_quantity,
+                };
+                selectSaleProduct(productWithWarehouse);
             }
         };
         const { addEditRequestAdmin, loading, rules } = apiAdmin();
@@ -1495,12 +1552,20 @@ export default {
             }
         };
 
+        const getCartKey = (product) => {
+            return product.warehouse_xid
+                ? product.xid + '__' + product.warehouse_xid
+                : product.xid;
+        };
+
         const selectSaleProduct = (newProduct) => {
-            if (!includes(selectedProductIds.value, newProduct.xid)) {
-                selectedProductIds.value.push(newProduct.xid);
+            const cartKey = getCartKey(newProduct);
+            if (!includes(selectedProductIds.value, cartKey)) {
+                selectedProductIds.value.push(cartKey);
 
                 selectedProducts.value.push({
                     ...newProduct,
+                    cart_key: cartKey,
                     sn: selectedProducts.value.length + 1,
                     unit_price: formatAmount(newProduct.unit_price),
                     tax_amount: formatAmount(newProduct.tax_amount),
@@ -1513,10 +1578,9 @@ export default {
                 var audioObj = new Audio(appSetting.value.beep_audio_url);
                 audioObj.play();
             } else {
-                const newProductSelection = find(selectedProducts.value, [
-                    "xid",
-                    newProduct.xid,
-                ]);
+                const newProductSelection = selectedProducts.value.find(
+                    (p) => p.cart_key === cartKey || (!p.cart_key && p.xid === newProduct.xid)
+                );
 
                 if (
                     newProductSelection &&
@@ -1529,8 +1593,9 @@ export default {
 
                     selectedProducts.value.map((selectedProduct) => {
                         var newQuantity = selectedProduct.quantity;
+                        const selCartKey = selectedProduct.cart_key || selectedProduct.xid;
 
-                        if (selectedProduct.xid == newProduct.xid) {
+                        if (selCartKey == cartKey) {
                             newQuantity += 1;
                             selectedProduct.quantity = newQuantity;
                             foundRecord = selectedProduct;
@@ -1669,7 +1734,9 @@ export default {
                     ];
                 }
 
-                if (selectedProduct.xid != product.xid) {
+                const selCartKey = selectedProduct.cart_key || selectedProduct.xid;
+                const delCartKey = product.cart_key || product.xid;
+                if (selCartKey != delCartKey) {
                     newResults.push({
                         ...selectedProduct,
                         sn: counter,
@@ -1685,10 +1752,11 @@ export default {
             });
             selectedProducts.value = newResults;
 
-            // Remove deleted product id from lists
+            // Remove deleted product id from lists (use cart_key for per-warehouse items)
+            const deletedCartKey = product.cart_key || product.xid;
             const filterProductIdArray = selectedProductIds.value.filter(
                 (newId) => {
-                    return newId != product.xid;
+                    return newId != deletedCartKey;
                 }
             );
             selectedProductIds.value = filterProductIdArray;
@@ -1986,6 +2054,9 @@ export default {
             stockPopupProduct,
             stockPopupLoading,
             stockPopupData,
+            selectedPopupWarehouseXid,
+            selectedPopupWarehouseName,
+            selectPopupWarehouse,
             showStockPopup,
             addToCartFromPopup,
         };

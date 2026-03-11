@@ -39,6 +39,10 @@ const fields = () => {
             dataIndex: "name",
         },
         {
+            title: "Warehouse",
+            dataIndex: "warehouse_name",
+        },
+        {
             title: t("product.quantity"),
             dataIndex: "unit_quantity",
         },

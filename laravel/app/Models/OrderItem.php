@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Casts\Hash;
 use App\Models\BaseModel;
+use App\Models\Warehouse;
 use App\Scopes\CompanyScope;
 use Vinkla\Hashids\Facades\Hashids;
 
@@ -15,9 +16,9 @@ class OrderItem extends BaseModel
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
-    protected $hidden = ['id', 'order_id', 'user_id', 'order_id', 'product_id', 'unit_id', 'tax_id'];
+    protected $hidden = ['id', 'order_id', 'user_id', 'order_id', 'product_id', 'unit_id', 'tax_id', 'warehouse_id'];
 
-    protected $appends = ['xid', 'x_order_id', 'x_user_id', 'x_order_id', 'x_product_id', 'x_unit_id', 'x_tax_id'];
+    protected $appends = ['xid', 'x_order_id', 'x_user_id', 'x_order_id', 'x_product_id', 'x_unit_id', 'x_tax_id', 'x_warehouse_id'];
 
     protected $filterable = ['id', 'product_id'];
 
@@ -27,6 +28,7 @@ class OrderItem extends BaseModel
         'getXProductIdAttribute' => 'product_id',
         'getXUnitIdAttribute' => 'unit_id',
         'getXTaxIdAttribute' => 'tax_id',
+        'getXWarehouseIdAttribute' => 'warehouse_id',
     ];
 
     protected $casts = [
@@ -35,6 +37,7 @@ class OrderItem extends BaseModel
         'product_id' => Hash::class . ':hash',
         'unit_id' => Hash::class . ':hash',
         'tax_id' => Hash::class . ':hash',
+        'warehouse_id' => Hash::class . ':hash',
         'quantity' => 'double',
         'mrp' => 'double',
         'unit_price' => 'double',
@@ -66,6 +69,11 @@ class OrderItem extends BaseModel
     public function unit()
     {
         return $this->belongsTo(Unit::class, 'unit_id', 'id');
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class, 'warehouse_id', 'id');
     }
 
     public function orderItemTaxes()

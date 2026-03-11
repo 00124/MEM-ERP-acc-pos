@@ -538,7 +538,17 @@ class Common
     public static function calculateOrderCount($orderType, $warehouseId, $productId)
     {
         $orderCount = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->where('orders.warehouse_id', '=', $warehouseId)
+            ->where(function ($q) use ($warehouseId) {
+                $q->where(function ($inner) use ($warehouseId) {
+                    // Item has a specific warehouse assigned (POS per-item selection)
+                    $inner->whereNotNull('order_items.warehouse_id')
+                          ->where('order_items.warehouse_id', '=', $warehouseId);
+                })->orWhere(function ($inner) use ($warehouseId) {
+                    // No per-item warehouse: fall back to order warehouse
+                    $inner->whereNull('order_items.warehouse_id')
+                          ->where('orders.warehouse_id', '=', $warehouseId);
+                });
+            })
             ->where('order_items.product_id', '=', $productId)
             ->where('orders.order_type', '=', $orderType)
             ->sum('order_items.quantity');
@@ -636,13 +646,22 @@ class Common
 
                     // For inserting MRP
                     $productId = self::getIdFromHash($productItem->xid);
-                    $warehouseId = $order->order_type == 'stock-transfers' ? $order->from_warehouse_id : $order->warehouse_id;
+
+                    // Use per-item warehouse if provided (POS per-item selection), else use order warehouse
+                    $itemWarehouseId = null;
+                    if (isset($productItem->warehouse_xid) && $productItem->warehouse_xid) {
+                        $itemWarehouseId = self::getIdFromHash($productItem->warehouse_xid);
+                    }
+                    $warehouseId = $itemWarehouseId ?: ($order->order_type == 'stock-transfers' ? $order->from_warehouse_id : $order->warehouse_id);
+
                     $productDetails = ProductDetails::withoutGlobalScope('current_warehouse')
                         ->where('warehouse_id', '=', $warehouseId)
                         ->where('product_id', '=', $productId)
                         ->first();
 
-                    $orderItem->mrp = $productDetails->mrp;
+                    $orderItem->mrp = $productDetails ? $productDetails->mrp : 0;
+                    // Store per-item warehouse so stock deduction uses correct warehouse
+                    $orderItem->warehouse_id = $itemWarehouseId ?: null;
                 } else {
                     $productItemId = self::getIdFromHash($productItem->item_id);
                     $orderItem = OrderItem::find($productItemId);
@@ -691,11 +710,17 @@ class Common
                     }
                 }
 
-                $warehouseId = $order->warehouse_id;
+                // Use per-item warehouse_id if set, otherwise fall back to order warehouse
+                $warehouseId = $orderItem->warehouse_id ?: $order->warehouse_id;
                 $productId = $orderItem->product_id;
 
                 // Update warehouse stock for product
                 self::recalculateOrderStock($warehouseId, $productId);
+
+                // If item warehouse differs from order warehouse, also recalculate order warehouse
+                if ($orderItem->warehouse_id && $orderItem->warehouse_id != $order->warehouse_id) {
+                    self::recalculateOrderStock($order->warehouse_id, $productId);
+                }
 
                 if ($orderType == "stock-transfers") {
                     self::recalculateOrderStock($order->from_warehouse_id, $productId);

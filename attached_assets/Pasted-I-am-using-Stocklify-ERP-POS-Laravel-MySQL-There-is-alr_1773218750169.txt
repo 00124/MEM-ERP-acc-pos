@@ -1,0 +1,87 @@
+I am using Stocklify ERP POS (Laravel + MySQL).
+
+There is already a popup modal called "Stock Availability" that shows warehouse/store and available quantity for the selected product.
+
+I need to enhance this popup with the following features.
+
+1. Warehouse Selection
+
+Add a radio button in front of each warehouse/store row so the user can select the warehouse from which the product will be sold.
+
+Example popup table:
+
+Select | Warehouse / Store | Available Qty
+( ) | MaShaAllah Electronics Model Town | 98
+( ) | Hussain Agahi | 0
+
+The user must select one warehouse before clicking "Add to Cart".
+
+2. Save Selected Warehouse
+
+When the product is added to the POS cart:
+
+* Save the selected warehouse_id with the cart item.
+* This warehouse will be used for stock deduction.
+
+3. Multiple Products with Different Warehouses
+
+If a customer buys multiple products and selects different warehouses for each product, the system must store warehouse_id for every cart item.
+
+4. Invoice
+
+On the POS invoice:
+
+* Show the Warehouse/Store name for each product line.
+
+Example:
+
+Product | Qty | Warehouse
+Solar Panel | 2 | Model Town
+Battery | 1 | Hussain Agahi
+
+5. Gate Pass Generation
+
+After completing the sale, generate a Gate Pass report.
+
+Important rules:
+
+* If products belong to different warehouses, generate separate gate passes per warehouse.
+* Each gate pass should only contain products belonging to that warehouse.
+
+Example:
+
+Gate Pass 1
+Warehouse: Model Town
+Products:
+Solar Panel - Qty 2
+
+Gate Pass 2
+Warehouse: Hussain Agahi
+Products:
+Battery - Qty 1
+
+6. Gate Pass Layout
+
+Gate Pass must contain:
+
+* Gate Pass Number
+* Invoice Number
+* Date
+* Warehouse Name
+* Customer Name
+* Salesman Name
+* Product Name
+* Quantity
+* Signature area
+
+7. Technical Requirements
+
+Please generate:
+
+* Blade modal update (add radio buttons)
+* AJAX validation for warehouse selection
+* Cart update to store warehouse_id per item
+* Stock deduction based on selected warehouse
+* Invoice blade update
+* Gate Pass report blade
+* Controller logic to group products by warehouse

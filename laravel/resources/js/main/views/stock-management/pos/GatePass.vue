@@ -4,23 +4,15 @@
         :centered="true"
         :maskClosable="false"
         title="Gate Pass"
-        width="500px"
+        width="580px"
         @cancel="onClose"
     >
         <div id="gate-pass-content">
-            <div style="max-width: 500px; margin: 0 auto; font-family: Arial, sans-serif; font-size: 13px;" v-if="order && order.xid">
+            <div style="max-width: 560px; margin: 0 auto; font-family: Arial, sans-serif; font-size: 13px;" v-if="order && order.xid">
                 <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
                     <h2 style="margin: 0; font-size: 18px;">{{ selectedWarehouse.name }}</h2>
                     <p style="margin: 2px 0; font-size: 12px;">{{ selectedWarehouse.address }}</p>
                     <h3 style="margin: 6px 0 0; font-size: 15px; letter-spacing: 1px;">GATE PASS</h3>
-                </div>
-
-                <!-- Sold From Warehouse Banner -->
-                <div style="background: #f0f7ff; border: 1px solid #91caff; border-radius: 4px; padding: 6px 10px; margin-bottom: 10px; text-align: center;">
-                    <strong style="font-size: 13px;">Sold From: {{ sellingWarehouseName || selectedWarehouse.name }}</strong>
-                    <div v-if="selectedWarehouse.address" style="font-size: 11px; color: #555; margin-top: 2px;">
-                        {{ selectedWarehouse.address }}
-                    </div>
                 </div>
 
                 <table style="width: 100%; margin-bottom: 10px; border-collapse: collapse;">
@@ -31,7 +23,7 @@
                         </tr>
                         <tr>
                             <td style="padding: 3px 0;"><strong>Invoice No:</strong> {{ order.invoice_number }}</td>
-                            <td style="padding: 3px 0;"><strong>Location:</strong> {{ sellingWarehouseName || selectedWarehouse.name }}</td>
+                            <td style="padding: 3px 0;"><strong>POS Warehouse:</strong> {{ sellingWarehouseName || selectedWarehouse.name }}</td>
                         </tr>
                         <tr>
                             <td style="padding: 3px 0;" colspan="2"><strong>Customer:</strong> {{ order.user ? order.user.name : 'Walk-in Customer' }}</td>
@@ -45,33 +37,56 @@
                     </tbody>
                 </table>
 
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;">
-                    <thead>
-                        <tr style="background: #333; color: #fff;">
-                            <td style="padding: 5px; border: 1px solid #333; width: 5%">#</td>
-                            <td style="padding: 5px; border: 1px solid #333;">Product Name</td>
-                            <td style="padding: 5px; border: 1px solid #333; text-align: center; width: 15%">Qty</td>
-                            <td style="padding: 5px; border: 1px solid #333; text-align: right; width: 20%">Unit Price</td>
-                            <td style="padding: 5px; border: 1px solid #333; text-align: right; width: 20%">Total</td>
-                        </tr>
-                    </thead>
+                <!-- Per-warehouse sections -->
+                <div
+                    v-for="(group, gIndex) in itemsByWarehouse"
+                    :key="group.warehouseKey"
+                    :style="{ marginBottom: '16px', border: '1px solid #91caff', borderRadius: '4px', overflow: 'hidden' }"
+                >
+                    <!-- Warehouse header -->
+                    <div style="background: #1677ff; color: #fff; padding: 5px 10px; font-size: 13px; font-weight: bold;">
+                        Warehouse / Store: {{ group.warehouseName }}
+                        <span style="float: right; font-size: 11px; font-weight: normal;">Section {{ gIndex + 1 }} of {{ itemsByWarehouse.length }}</span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #e6f4ff;">
+                                <td style="padding: 5px; border: 1px solid #ccc; width: 5%">#</td>
+                                <td style="padding: 5px; border: 1px solid #ccc;">Product Name</td>
+                                <td style="padding: 5px; border: 1px solid #ccc; text-align: center; width: 15%">Qty</td>
+                                <td style="padding: 5px; border: 1px solid #ccc; text-align: right; width: 20%">Unit Price</td>
+                                <td style="padding: 5px; border: 1px solid #ccc; text-align: right; width: 20%">Total</td>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(item, index) in group.items" :key="item.xid">
+                                <td style="padding: 4px 5px; border: 1px solid #ccc;">{{ index + 1 }}</td>
+                                <td style="padding: 4px 5px; border: 1px solid #ccc;">{{ item.product ? item.product.name : '-' }}</td>
+                                <td style="padding: 4px 5px; border: 1px solid #ccc; text-align: center;">{{ item.quantity }} {{ item.unit ? item.unit.short_name : '' }}</td>
+                                <td style="padding: 4px 5px; border: 1px solid #ccc; text-align: right;">{{ formatAmountCurrency(item.unit_price) }}</td>
+                                <td style="padding: 4px 5px; border: 1px solid #ccc; text-align: right;">{{ formatAmountCurrency(item.subtotal) }}</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="4" style="padding: 5px; border: 1px solid #ccc; text-align: right; font-weight: bold;">Section Total</td>
+                                <td style="padding: 5px; border: 1px solid #ccc; text-align: right; font-weight: bold;">{{ formatAmountCurrency(group.total) }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- Grand total -->
+                <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
                     <tbody>
-                        <tr v-for="(item, index) in order.items" :key="item.xid">
-                            <td style="padding: 4px 5px; border: 1px solid #ccc;">{{ index + 1 }}</td>
-                            <td style="padding: 4px 5px; border: 1px solid #ccc;">{{ item.product ? item.product.name : '-' }}</td>
-                            <td style="padding: 4px 5px; border: 1px solid #ccc; text-align: center;">{{ item.quantity }} {{ item.unit ? item.unit.short_name : '' }}</td>
-                            <td style="padding: 4px 5px; border: 1px solid #ccc; text-align: right;">{{ formatAmountCurrency(item.unit_price) }}</td>
-                            <td style="padding: 4px 5px; border: 1px solid #ccc; text-align: right;">{{ formatAmountCurrency(item.subtotal) }}</td>
+                        <tr>
+                            <td colspan="4" style="padding: 6px; border: 1px solid #333; text-align: right; font-weight: bold; font-size: 14px;">Grand Total</td>
+                            <td style="padding: 6px; border: 1px solid #333; text-align: right; font-weight: bold; font-size: 14px; width: 20%;">{{ formatAmountCurrency(order.total) }}</td>
                         </tr>
                     </tbody>
-                    <tfoot>
-                        <tr>
-                            <td colspan="4" style="padding: 5px; border: 1px solid #ccc; text-align: right; font-weight: bold;">Grand Total</td>
-                            <td style="padding: 5px; border: 1px solid #ccc; text-align: right; font-weight: bold;">{{ formatAmountCurrency(order.total) }}</td>
-                        </tr>
-                    </tfoot>
                 </table>
 
+                <!-- Signature row -->
                 <table style="width: 100%; margin-top: 30px;">
                     <tbody>
                         <tr>
@@ -106,7 +121,7 @@
 </template>
 
 <script>
-import { defineComponent } from "vue";
+import { defineComponent, computed } from "vue";
 import { PrinterOutlined } from "@ant-design/icons-vue";
 import common from "../../../../common/composable/common";
 
@@ -119,9 +134,36 @@ export default defineComponent({
 
         const onClose = () => emit("closed");
 
+        const itemsByWarehouse = computed(() => {
+            if (!props.order || !props.order.items) return [];
+
+            const groups = {};
+            props.order.items.forEach(item => {
+                const warehouseName = (item.warehouse && item.warehouse.name)
+                    ? item.warehouse.name
+                    : (props.sellingWarehouseName || selectedWarehouse.value?.name || 'Default');
+                const warehouseKey = (item.warehouse && item.warehouse.xid)
+                    ? item.warehouse.xid
+                    : 'default';
+
+                if (!groups[warehouseKey]) {
+                    groups[warehouseKey] = {
+                        warehouseKey,
+                        warehouseName,
+                        items: [],
+                        total: 0,
+                    };
+                }
+                groups[warehouseKey].items.push(item);
+                groups[warehouseKey].total += item.subtotal || 0;
+            });
+
+            return Object.values(groups);
+        });
+
         const printGatePass = () => {
             const content = document.getElementById("gate-pass-content").innerHTML;
-            const printWindow = window.open("", "_blank", "width=600,height=800");
+            const printWindow = window.open("", "_blank", "width=650,height=900");
             printWindow.document.write(`
                 <html><head><title>Gate Pass</title>
                 <style>
@@ -137,7 +179,7 @@ export default defineComponent({
             setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
         };
 
-        return { formatAmountCurrency, formatDate, selectedWarehouse, onClose, printGatePass };
+        return { formatAmountCurrency, formatDate, selectedWarehouse, onClose, printGatePass, itemsByWarehouse };
     },
 });
 </script>
