@@ -221,7 +221,16 @@ class PosController extends ApiBaseController
         $order->paid_amount = 0;
         $order->due_amount = $order->total;
         $order->order_status = $posDefaultStatus;
-        $order->staff_user_id = $loggedInUser->id;
+
+        // Use selected salesman if provided, otherwise default to logged-in user
+        $salesmanXid = $request->input('salesman_xid', null);
+        if ($salesmanXid) {
+            $salesmanId = $this->getIdFromHash($salesmanXid);
+            $order->staff_user_id = $salesmanId ?: $loggedInUser->id;
+        } else {
+            $order->staff_user_id = $loggedInUser->id;
+        }
+
         $order->save();
 
         $order->invoice_number = Common::getTransactionNumber($order->order_type, $order->id);
@@ -267,7 +276,7 @@ class PosController extends ApiBaseController
         Common::updateOrderAmount($order->id);
 
         $savedOrder = Order::select('id', 'unique_id', 'invoice_number', 'user_id', 'staff_user_id', 'order_date', 'discount', 'shipping', 'tax_amount', 'subtotal', 'total', 'paid_amount', 'due_amount', 'total_items', 'total_quantity', 'order_type')
-            ->with(['user:id,name,email', 'items:id,order_id,product_id,unit_id,unit_price,subtotal,quantity,mrp,total_tax', 'items.product:id,name', 'items.unit:id,name,short_name', 'orderPayments:id,order_id,payment_id,amount', 'orderPayments.payment:id,payment_mode_id', 'orderPayments.payment.paymentMode:id,name', 'staffMember:id,name'])
+            ->with(['user:id,name,email,phone', 'items:id,order_id,product_id,unit_id,unit_price,subtotal,quantity,mrp,total_tax', 'items.product:id,name', 'items.unit:id,name,short_name', 'orderPayments:id,order_id,payment_id,amount', 'orderPayments.payment:id,payment_mode_id', 'orderPayments.payment.paymentMode:id,name', 'staffMember:id,name'])
             ->find($order->id);
 
         $totalMrp = 0;

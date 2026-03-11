@@ -52,6 +52,29 @@
             </a-col>
             <a-col :xs="24" :sm="24" :md="16" :lg="16">
                 <a-row :gutter="[24, 24]">
+                    <!-- Salesman Selection -->
+                    <a-col :span="24">
+                        <a-form-item label="Salesman">
+                            <a-select
+                                v-model:value="selectedSalesmanXid"
+                                placeholder="Select Salesman"
+                                style="width: 100%"
+                                optionFilterProp="label"
+                                show-search
+                                allow-clear
+                            >
+                                <a-select-option
+                                    v-for="salesman in salesmen"
+                                    :key="salesman.xid"
+                                    :value="salesman.xid"
+                                    :label="salesman.name"
+                                >
+                                    {{ salesman.name }}
+                                </a-select-option>
+                            </a-select>
+                        </a-form-item>
+                    </a-col>
+
                     <a-col :span="24" v-if="!showAddForm">
                         <a-row :gutter="[16, 8]" class="mt-20">
                             <a-col :xs="24" :sm="24" :md="10" :lg="10">
@@ -278,6 +301,8 @@ export default {
         const { addEditRequestAdmin, loading, rules } = apiAdmin();
         const { appSetting, formatAmountCurrency } = common();
         const paymentModes = ref([]);
+        const salesmen = ref([]);
+        const selectedSalesmanXid = ref(undefined);
         const formData = ref({
             payment_mode_id: undefined,
             amount: 0,
@@ -305,6 +330,9 @@ export default {
             axiosAdmin.get("payment-modes").then((response) => {
                 paymentModes.value = response.data;
             });
+            axiosAdmin.get("users?user_type=staff_members&limit=10000").then((response) => {
+                salesmen.value = response.data || [];
+            });
         });
 
         const drawerClosed = () => {
@@ -314,6 +342,7 @@ export default {
                 notes: "",
             };
             allPaymentRecords.value = [];
+            selectedSalesmanXid.value = undefined;
             emit("closed");
         };
 
@@ -347,6 +376,7 @@ export default {
                 product_items: props.selectedProducts,
                 details: props.data,
                 selected_warehouse_xid: props.sellingWarehouseXid || null,
+                salesman_xid: selectedSalesmanXid.value || null,
             };
 
             addEditRequestAdmin({
@@ -362,6 +392,7 @@ export default {
 
                     allPaymentRecords.value = [];
                     showAddForm.value = false;
+                    selectedSalesmanXid.value = undefined;
                     emit("success", res.order);
                 },
             });
@@ -410,6 +441,8 @@ export default {
             rules,
             drawerClosed,
             paymentModes,
+            salesmen,
+            selectedSalesmanXid,
             formData,
             appSetting,
             formatAmountCurrency,

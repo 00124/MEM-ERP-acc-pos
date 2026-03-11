@@ -15,6 +15,14 @@
                     <h3 style="margin: 6px 0 0; font-size: 15px; letter-spacing: 1px;">GATE PASS</h3>
                 </div>
 
+                <!-- Sold From Warehouse Banner -->
+                <div style="background: #f0f7ff; border: 1px solid #91caff; border-radius: 4px; padding: 6px 10px; margin-bottom: 10px; text-align: center;">
+                    <strong style="font-size: 13px;">Sold From: {{ sellingWarehouseName || selectedWarehouse.name }}</strong>
+                    <div v-if="selectedWarehouse.address" style="font-size: 11px; color: #555; margin-top: 2px;">
+                        {{ selectedWarehouse.address }}
+                    </div>
+                </div>
+
                 <table style="width: 100%; margin-bottom: 10px; border-collapse: collapse;">
                     <tbody>
                         <tr>
@@ -23,13 +31,16 @@
                         </tr>
                         <tr>
                             <td style="padding: 3px 0;"><strong>Invoice No:</strong> {{ order.invoice_number }}</td>
-                            <td style="padding: 3px 0;"><strong>Warehouse:</strong> {{ sellingWarehouseName || selectedWarehouse.name }}</td>
+                            <td style="padding: 3px 0;"><strong>Location:</strong> {{ sellingWarehouseName || selectedWarehouse.name }}</td>
                         </tr>
                         <tr>
                             <td style="padding: 3px 0;" colspan="2"><strong>Customer:</strong> {{ order.user ? order.user.name : 'Walk-in Customer' }}</td>
                         </tr>
+                        <tr v-if="order.user && order.user.phone">
+                            <td style="padding: 3px 0;" colspan="2"><strong>Customer Phone:</strong> {{ order.user.phone }}</td>
+                        </tr>
                         <tr v-if="order.staff_member">
-                            <td style="padding: 3px 0;" colspan="2"><strong>Issued By:</strong> {{ order.staff_member.name }}</td>
+                            <td style="padding: 3px 0;" colspan="2"><strong>Salesman:</strong> {{ order.staff_member.name }}</td>
                         </tr>
                     </tbody>
                 </table>

@@ -60,13 +60,26 @@ The router source (`resources/js/main/router/index.js`) was missing the `var _0x
 - pageObject mapping: Added `grn` case to `resources/js/main/views/stock-management/purchases/fields.js`
 
 ### POS Enhancements — ✅ Implemented
-All six feature groups implemented. Key files changed:
-- `app/Http/Controllers/Api/PosController.php` — added `posWarehouses()` (GET /pos/warehouses) and `allWarehouseStock()` (POST /pos/all-warehouse-stock) methods; updated `savePosPayments()` to accept `selected_warehouse_xid` for stock deduction from chosen warehouse
-- `routes/web.php` — added routes for both new endpoints
-- `resources/js/main/views/stock-management/pos/Pos.vue` — warehouse selector dropdown (below customer picker), stock popup modal on product click, passes warehouse to PayNow and InvoiceModal
-- `resources/js/main/views/stock-management/pos/PayNow.vue` — accepts `sellingWarehouseXid` prop, passes to pos/save API
-- `resources/js/main/views/stock-management/pos/Invoice.vue` — shows "Sold From: [warehouse]", Gate Pass button, imports GatePass component
-- `resources/js/main/views/stock-management/pos/GatePass.vue` — NEW: printable gate pass modal with: Gate Pass #, Invoice #, Date, Warehouse, Customer, product table, Authorized By / Received By signature areas
+All feature groups implemented. Key files changed:
+- `app/Http/Controllers/Api/PosController.php` — added `posWarehouses()`, `allWarehouseStock()`; `savePosPayments()` accepts `selected_warehouse_xid` and `salesman_xid`; `staffMember:id,name` and `user:id,name,email,phone` loaded in order response
+- `routes/web.php` — added routes for POS warehouse/stock endpoints
+- `resources/js/main/views/stock-management/pos/Pos.vue`:
+  - Warehouse selector dropdown (before customer section)
+  - Stock popup modal on product click
+  - **NEW**: Customer Quick Add — Phone Number + Customer Name inputs + "+" button replaced old dropdown
+    - Auto-searches customers by phone (300ms debounce)
+    - Green alert shows when customer found; warning alert when not found
+    - "+" opens "Add New Customer" modal with name+phone fields (phone pre-filled)
+    - API POST /api/v1/customers {name, phone, user_type, status, warehouse_id}
+    - After creation: auto-selects the new customer
+- `resources/js/main/views/stock-management/pos/PayNow.vue`:
+  - **NEW**: Salesman dropdown at top — fetches GET /api/v1/users?user_type=staff_members
+  - `salesman_xid` sent to pos/save
+- `resources/js/main/views/stock-management/pos/Invoice.vue` — shows "Sold From: [warehouse]", Gate Pass button
+- `resources/js/main/views/stock-management/pos/GatePass.vue`:
+  - **NEW**: "Sold From" blue banner at top with warehouse name/address
+  - Shows "Salesman" (staff_member.name) and Customer Phone
+  - Printable gate pass modal
 
 ## Database Tables (Key)
 - `orders` — orders with order_type: purchases, sales, grn, purchase-returns, sales-returns, stock-transfers, quotations

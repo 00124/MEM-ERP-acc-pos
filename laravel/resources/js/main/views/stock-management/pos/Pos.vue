@@ -11,33 +11,17 @@
                     class="p-0"
                 >
                     <template v-if="innerWidth <= 768" #extra>
-                        <span style="display: flex">
-                            <a-select
-                                v-model:value="formData.user_id"
-                                :placeholder="$t('user.walk_in_customer')"
-                                style="width: 100%"
-                                optionFilterProp="title"
-                                show-search
-                            >
-                                <a-select-option
-                                    v-for="customer in customers"
-                                    :key="customer.xid"
-                                    :title="customer.name"
-                                    :value="customer.xid"
-                                >
-                                    {{ customer.name }}
-                                    <span
-                                        v-if="
-                                            customer.phone &&
-                                            customer.phone != ''
-                                        "
-                                    >
-                                        <br />
-                                        {{ customer.phone }}
-                                    </span>
-                                </a-select-option>
-                            </a-select>
-                            <CustomerAddButton @onAddSuccess="customerAdded" />
+                        <span style="display: flex; gap: 4px;">
+                            <a-input
+                                v-model:value="quickAddPhone"
+                                placeholder="Phone"
+                                style="width: 140px;"
+                                allow-clear
+                                @change="searchCustomerByPhone"
+                            />
+                            <a-button type="primary" @click="openAddCustomerModal">
+                                <template #icon><PlusOutlined /></template>
+                            </a-button>
                         </span>
                     </template>
                 </a-page-header>
@@ -68,38 +52,55 @@
                                         :lg="24"
                                         :xl="24"
                                     >
-                                        <span style="display: flex">
-                                            <a-select
-                                                v-model:value="formData.user_id"
-                                                :placeholder="
-                                                    $t('user.walk_in_customer')
-                                                "
-                                                style="width: 100%"
-                                                optionFilterProp="title"
-                                                show-search
-                                            >
-                                                <a-select-option
-                                                    v-for="customer in customers"
-                                                    :key="customer.xid"
-                                                    :title="customer.name"
-                                                    :value="customer.xid"
+                                        <!-- Customer Quick Add -->
+                                        <div>
+                                            <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                                                <a-input
+                                                    v-model:value="quickAddPhone"
+                                                    placeholder="Phone Number"
+                                                    style="width: 48%;"
+                                                    allow-clear
+                                                    @change="searchCustomerByPhone"
+                                                />
+                                                <a-input
+                                                    v-model:value="quickAddName"
+                                                    placeholder="Customer Name"
+                                                    style="width: 40%;"
+                                                    :disabled="!!selectedCustomerInfo"
+                                                />
+                                                <a-button
+                                                    type="primary"
+                                                    style="width: 36px; padding: 0;"
+                                                    :loading="addCustomerLoading"
+                                                    @click="openAddCustomerModal"
+                                                    title="Add New Customer"
                                                 >
-                                                    {{ customer.name }}
-                                                    <span
-                                                        v-if="
-                                                            customer.phone &&
-                                                            customer.phone != ''
-                                                        "
-                                                    >
-                                                        <br />
-                                                        {{ customer.phone }}
+                                                    <template #icon><PlusOutlined /></template>
+                                                </a-button>
+                                            </div>
+                                            <a-alert
+                                                v-if="selectedCustomerInfo"
+                                                type="success"
+                                                show-icon
+                                                closable
+                                                @close="clearSelectedCustomer"
+                                                style="padding: 4px 10px; font-size: 13px;"
+                                            >
+                                                <template #message>
+                                                    <strong>{{ selectedCustomerInfo.name }}</strong>
+                                                    <span v-if="selectedCustomerInfo.phone" style="margin-left: 8px; color: #555;">
+                                                        {{ selectedCustomerInfo.phone }}
                                                     </span>
-                                                </a-select-option>
-                                            </a-select>
-                                            <CustomerAddButton
-                                                @onAddSuccess="customerAdded"
+                                                </template>
+                                            </a-alert>
+                                            <a-alert
+                                                v-else-if="phoneSearchDone && quickAddPhone.length >= 3"
+                                                type="warning"
+                                                message="Customer not found. Enter name and click + to add."
+                                                show-icon
+                                                style="padding: 4px 10px; font-size: 12px;"
                                             />
-                                        </span>
+                                        </div>
                                     </a-col>
                                 </a-row>
                                 <a-row class="mt-10">
@@ -1188,6 +1189,45 @@
         @closed="printInvoiceModalVisible = false"
     />
 
+    <!-- Add Customer Modal -->
+    <a-modal
+        :open="addCustomerModalVisible"
+        title="Add New Customer"
+        :footer="null"
+        :maskClosable="false"
+        @cancel="addCustomerModalVisible = false"
+    >
+        <a-form layout="vertical" @submit.prevent="handleQuickAddCustomer">
+            <a-form-item label="Customer Name" required>
+                <a-input
+                    v-model:value="modalCustomerName"
+                    placeholder="Enter full name"
+                    allow-clear
+                />
+            </a-form-item>
+            <a-form-item label="Phone Number" required>
+                <a-input
+                    v-model:value="modalCustomerPhone"
+                    placeholder="Enter phone number"
+                    allow-clear
+                />
+            </a-form-item>
+            <a-form-item style="margin-bottom: 0;">
+                <a-space style="width: 100%; justify-content: flex-end;">
+                    <a-button @click="addCustomerModalVisible = false">Cancel</a-button>
+                    <a-button
+                        type="primary"
+                        :loading="addCustomerLoading"
+                        html-type="submit"
+                        @click="handleQuickAddCustomer"
+                    >
+                        Save Customer
+                    </a-button>
+                </a-space>
+            </a-form-item>
+        </a-form>
+    </a-modal>
+
     <!-- Stock Availability Popup -->
     <a-modal
         :open="stockPopupVisible"
@@ -1323,6 +1363,16 @@ export default {
         const stockPopupProduct = ref(null);
         const stockPopupLoading = ref(false);
         const stockPopupData = ref([]);
+
+        // Customer Quick Add state
+        const quickAddPhone = ref('');
+        const quickAddName = ref('');
+        const selectedCustomerInfo = ref(null);
+        const phoneSearchDone = ref(false);
+        const addCustomerModalVisible = ref(false);
+        const addCustomerLoading = ref(false);
+        const modalCustomerName = ref('');
+        const modalCustomerPhone = ref('');
 
         onMounted(() => {
             axiosAdmin.get("pos/warehouses").then((resp) => {
@@ -1690,6 +1740,12 @@ export default {
                 subtotal: 0,
             };
 
+            // Reset quick-add customer state
+            selectedCustomerInfo.value = null;
+            phoneSearchDone.value = false;
+            quickAddPhone.value = '';
+            quickAddName.value = '';
+
             recalculateFinalTotal();
         };
 
@@ -1731,6 +1787,78 @@ export default {
             axiosAdmin.get(customerUrl).then((response) => {
                 customers.value = response.data;
             });
+        };
+
+        // Customer Quick Add functions
+        const searchCustomerByPhone = debounce(() => {
+            const phone = quickAddPhone.value ? quickAddPhone.value.trim() : '';
+            if (phone.length < 3) {
+                phoneSearchDone.value = false;
+                selectedCustomerInfo.value = null;
+                formData.value.user_id = posDefaultCustomer.value?.xid || undefined;
+                quickAddName.value = '';
+                return;
+            }
+            const found = customers.value.find(
+                (c) => c.phone && c.phone.replace(/\s/g, '').includes(phone.replace(/\s/g, ''))
+            );
+            phoneSearchDone.value = true;
+            if (found) {
+                selectedCustomerInfo.value = { xid: found.xid, name: found.name, phone: found.phone || '' };
+                formData.value.user_id = found.xid;
+                quickAddName.value = found.name;
+            } else {
+                selectedCustomerInfo.value = null;
+                formData.value.user_id = posDefaultCustomer.value?.xid || undefined;
+            }
+        }, 300);
+
+        const openAddCustomerModal = () => {
+            modalCustomerPhone.value = quickAddPhone.value;
+            modalCustomerName.value = quickAddName.value;
+            addCustomerModalVisible.value = true;
+        };
+
+        const handleQuickAddCustomer = () => {
+            if (!modalCustomerName.value || !modalCustomerPhone.value) {
+                message.warning('Please enter both name and phone number.');
+                return;
+            }
+            addCustomerLoading.value = true;
+            axiosAdmin.post('customers', {
+                name: modalCustomerName.value,
+                phone: modalCustomerPhone.value,
+                user_type: 'customers',
+                status: 'enabled',
+                warehouse_id: selectedPosWarehouseXid.value || undefined,
+            }).then(() => {
+                axiosAdmin.get(customerUrl).then((resp) => {
+                    customers.value = resp.data;
+                    const added = customers.value.find(
+                        (c) => c.phone === modalCustomerPhone.value || c.name === modalCustomerName.value
+                    );
+                    if (added) {
+                        selectedCustomerInfo.value = { xid: added.xid, name: added.name, phone: added.phone || '' };
+                        formData.value.user_id = added.xid;
+                        quickAddPhone.value = added.phone || modalCustomerPhone.value;
+                        quickAddName.value = added.name;
+                    }
+                });
+                addCustomerLoading.value = false;
+                addCustomerModalVisible.value = false;
+                message.success('Customer added successfully!');
+            }).catch(() => {
+                addCustomerLoading.value = false;
+                message.error('Failed to add customer. Please check the details.');
+            });
+        };
+
+        const clearSelectedCustomer = () => {
+            selectedCustomerInfo.value = null;
+            phoneSearchDone.value = false;
+            quickAddPhone.value = '';
+            quickAddName.value = '';
+            formData.value.user_id = posDefaultCustomer.value?.xid || undefined;
         };
 
         const payNowSuccess = (invoiceOrder) => {
@@ -1808,6 +1936,20 @@ export default {
             },
 
             customerAdded,
+
+            // Customer Quick Add
+            quickAddPhone,
+            quickAddName,
+            selectedCustomerInfo,
+            phoneSearchDone,
+            addCustomerModalVisible,
+            addCustomerLoading,
+            modalCustomerName,
+            modalCustomerPhone,
+            searchCustomerByPhone,
+            openAddCustomerModal,
+            handleQuickAddCustomer,
+            clearSelectedCustomer,
 
             // Add Edit
             editItem,
