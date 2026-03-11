@@ -214,19 +214,12 @@ const fields = () => {
             });
         }
 
-        columns.value = [
-            ...allColumns,
-            {
-                title: t(`${pageObject.value.langKey}.${pageObject.value.langKey}_status`),
-                dataIndex: "order_status",
-                sorter:true,
-            },
+        const paymentColumns = pageObject.value.type !== 'grn' ? [
             {
                 title: t("payments.total_amount"),
                 dataIndex: "total_amount",
                 sorter:true,
                 sorter_field:"orders.total"
-
             },
             {
                 title: t("payments.paid_amount"),
@@ -243,6 +236,16 @@ const fields = () => {
                 dataIndex: "payment_status",
                 sorter:true,
             },
+        ] : [];
+
+        columns.value = [
+            ...allColumns,
+            {
+                title: t(`${pageObject.value.langKey}.${pageObject.value.langKey}_status`),
+                dataIndex: "order_status",
+                sorter:true,
+            },
+            ...paymentColumns,
             {
                 title: t("common.action"),
                 dataIndex: "action",
