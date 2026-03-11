@@ -114,6 +114,7 @@ export default [
                     menuParent: "purchases",
                     menuKey: (route) => "grn",
                     permission: (route) => "grn_view",
+                    orderType: "grn",
                 },
             },
 
