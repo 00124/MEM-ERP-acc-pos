@@ -107,6 +107,19 @@ export default [
                     menuKey: () => "accounting_supplier_ledger",
                 },
             },
+            {
+                path: "/admin/accounting/category-mapping",
+                component: () =>
+                    import(
+                        "../views/accounting/category-mapping/index.vue"
+                    ),
+                name: "admin.accounting.category_mapping",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "accounting",
+                    menuKey: () => "accounting_category_mapping",
+                },
+            },
         ],
     },
 ];

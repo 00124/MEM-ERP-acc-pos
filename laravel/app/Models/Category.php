@@ -15,7 +15,7 @@ class Category extends BaseModel
     protected $table = 'categories';
 
     protected $default = ['id', 'xid', 'name', 'slug', 'parent_id', 'x_parent_id', 'image', 'image_url',
-                          'sales_account_id', 'cogs_account_id', 'inventory_account_id'];
+                          'sales_account_id', 'cogs_account_id', 'inventory_account_id', 'purchase_account_id'];
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
@@ -76,5 +76,10 @@ class Category extends BaseModel
     public function inventoryAccount()
     {
         return $this->belongsTo(ChartOfAccount::class, 'inventory_account_id', 'id');
+    }
+
+    public function purchaseAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'purchase_account_id', 'id');
     }
 }

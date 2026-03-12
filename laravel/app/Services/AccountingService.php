@@ -50,12 +50,15 @@ class AccountingService
         if (!isset(self::$categoryCache[$key])) {
             $cat = Category::withoutGlobalScope(\App\Scopes\CompanyScope::class)
                 ->where('id', $categoryId)
-                ->first(['id', 'sales_account_id', 'cogs_account_id', 'inventory_account_id']);
+                ->first(['id', 'sales_account_id', 'cogs_account_id', 'inventory_account_id', 'purchase_account_id']);
+
+            $fallbackInv = self::getAccountId(self::INVENTORY, $companyId);
 
             self::$categoryCache[$key] = [
-                'sales'     => $cat?->sales_account_id ?: self::getAccountId(self::SALES_REVENUE, $companyId),
-                'cogs'      => $cat?->cogs_account_id  ?: self::getAccountId(self::COGS, $companyId),
-                'inventory' => $cat?->inventory_account_id ?: self::getAccountId(self::INVENTORY, $companyId),
+                'sales'     => $cat?->sales_account_id    ?: self::getAccountId(self::SALES_REVENUE, $companyId),
+                'cogs'      => $cat?->cogs_account_id     ?: self::getAccountId(self::COGS, $companyId),
+                'inventory' => $cat?->inventory_account_id ?: $fallbackInv,
+                'purchase'  => $cat?->purchase_account_id  ?: ($cat?->inventory_account_id ?: $fallbackInv),
             ];
         }
         return self::$categoryCache[$key];
@@ -189,11 +192,12 @@ class AccountingService
                 ->first(['purchase_price']);
 
             $result[] = [
-                'subtotal'          => round((float)$item->subtotal, 2),
-                'cost'              => round(((float)($productDetail?->purchase_price ?? 0)) * (float)$item->quantity, 2),
-                'sales_account_id'  => $catAccts['sales'],
-                'cogs_account_id'   => $catAccts['cogs'],
-                'inventory_account_id' => $catAccts['inventory'],
+                'subtotal'              => round((float)$item->subtotal, 2),
+                'cost'                  => round(((float)($productDetail?->purchase_price ?? 0)) * (float)$item->quantity, 2),
+                'sales_account_id'      => $catAccts['sales'],
+                'cogs_account_id'       => $catAccts['cogs'],
+                'inventory_account_id'  => $catAccts['inventory'],
+                'purchase_account_id'   => $catAccts['purchase'],
             ];
         }
 
@@ -316,17 +320,18 @@ class AccountingService
 
             // DR: Per-category Inventory (subtotals)
             // CR: Accounts Payable (total)
-            $invByAcct = self::sumByAccount($items, 'subtotal', 'inventory_account_id');
-            $apAcctId  = self::getAccountId(self::ACCOUNTS_PAYABLE, $companyId);
-            $invTotal  = array_sum($invByAcct);
+            // Use purchase_account_id (dedicated purchase/receiving account per category)
+            $purchByAcct = self::sumByAccount($items, 'subtotal', 'purchase_account_id');
+            $apAcctId    = self::getAccountId(self::ACCOUNTS_PAYABLE, $companyId);
+            $purchTotal  = array_sum($purchByAcct);
 
             $purchaseLines = [];
-            foreach ($invByAcct as $acctId => $amount) {
+            foreach ($purchByAcct as $acctId => $amount) {
                 if ($amount > 0) $purchaseLines[] = ['account_id' => $acctId, 'debit' => round($amount, 2), 'credit' => 0, 'note' => 'Stock purchased'];
             }
-            $purchaseLines[] = ['account_id' => $apAcctId, 'debit' => 0, 'credit' => $invTotal ?: $total, 'note' => 'Supplier payable'];
+            $purchaseLines[] = ['account_id' => $apAcctId, 'debit' => 0, 'credit' => $purchTotal ?: $total, 'note' => 'Supplier payable'];
 
-            // Fallback if no items
+            // Fallback if no items loaded
             if (count($purchaseLines) === 1) {
                 $fallbackInv = self::getAccountId(self::INVENTORY, $companyId);
                 array_unshift($purchaseLines, ['account_id' => $fallbackInv, 'debit' => $total, 'credit' => 0, 'note' => 'Stock purchased']);

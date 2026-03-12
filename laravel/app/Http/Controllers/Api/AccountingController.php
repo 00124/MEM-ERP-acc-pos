@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\ApiBaseController;
+use App\Models\Category;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
@@ -479,5 +480,119 @@ class AccountingController extends ApiBaseController
             'date_from' => $dateFrom,
             'date_to'   => $dateTo,
         ], '');
+    }
+
+    // ─── CATEGORY ACCOUNTING MAPPING ──────────────────────────────────────
+
+    /**
+     * GET /api/v1/accounting/category-mappings
+     * Returns all categories with their 4 COA account assignments + account names.
+     */
+    public function categoryMappingIndex(Request $request)
+    {
+        $companyId = company()->id;
+
+        $categories = Category::withoutGlobalScope(\App\Scopes\CompanyScope::class)
+            ->where('company_id', $companyId)
+            ->with([
+                'salesAccount:id,account_code,account_name,account_type',
+                'cogsAccount:id,account_code,account_name,account_type',
+                'inventoryAccount:id,account_code,account_name,account_type',
+                'purchaseAccount:id,account_code,account_name,account_type',
+            ])
+            ->orderBy('name')
+            ->get([
+                'id', 'name', 'slug',
+                'sales_account_id', 'cogs_account_id',
+                'inventory_account_id', 'purchase_account_id',
+            ]);
+
+        // Flat list of all COA accounts for dropdowns
+        $accounts = ChartOfAccount::where('company_id', $companyId)
+            ->whereNotNull('parent_id') // leaf accounts only
+            ->orderBy('account_code')
+            ->get(['id', 'account_code', 'account_name', 'account_type']);
+
+        return $this->sendResponse([
+            'categories' => $categories,
+            'accounts'   => $accounts,
+        ], '');
+    }
+
+    /**
+     * PUT /api/v1/accounting/category-mappings/{id}
+     * Update the 4 COA account IDs for a single category.
+     */
+    public function categoryMappingUpdate(Request $request, $id)
+    {
+        $request->validate([
+            'sales_account_id'     => 'nullable|exists:chart_of_accounts,id',
+            'cogs_account_id'      => 'nullable|exists:chart_of_accounts,id',
+            'inventory_account_id' => 'nullable|exists:chart_of_accounts,id',
+            'purchase_account_id'  => 'nullable|exists:chart_of_accounts,id',
+        ]);
+
+        $companyId = company()->id;
+        $category  = Category::withoutGlobalScope(\App\Scopes\CompanyScope::class)
+            ->where('company_id', $companyId)
+            ->findOrFail($id);
+
+        $category->update($request->only([
+            'sales_account_id',
+            'cogs_account_id',
+            'inventory_account_id',
+            'purchase_account_id',
+        ]));
+
+        // Reload with account names
+        $category->load([
+            'salesAccount:id,account_code,account_name',
+            'cogsAccount:id,account_code,account_name',
+            'inventoryAccount:id,account_code,account_name',
+            'purchaseAccount:id,account_code,account_name',
+        ]);
+
+        return $this->sendResponse(['category' => $category], 'Category mapping updated successfully.');
+    }
+
+    /**
+     * POST /api/v1/accounting/category-mappings/bulk
+     * Bulk update category mappings. Body: { mappings: [{id, sales_account_id, ...}] }
+     */
+    public function categoryMappingBulk(Request $request)
+    {
+        $request->validate([
+            'mappings'             => 'required|array',
+            'mappings.*.id'        => 'required|integer',
+            'mappings.*.sales_account_id'     => 'nullable|exists:chart_of_accounts,id',
+            'mappings.*.cogs_account_id'      => 'nullable|exists:chart_of_accounts,id',
+            'mappings.*.inventory_account_id' => 'nullable|exists:chart_of_accounts,id',
+            'mappings.*.purchase_account_id'  => 'nullable|exists:chart_of_accounts,id',
+        ]);
+
+        $companyId = company()->id;
+        $updated   = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->mappings as $map) {
+                $affected = Category::withoutGlobalScope(\App\Scopes\CompanyScope::class)
+                    ->where('company_id', $companyId)
+                    ->where('id', $map['id'])
+                    ->update([
+                        'sales_account_id'     => $map['sales_account_id']     ?? null,
+                        'cogs_account_id'      => $map['cogs_account_id']      ?? null,
+                        'inventory_account_id' => $map['inventory_account_id'] ?? null,
+                        'purchase_account_id'  => $map['purchase_account_id']  ?? null,
+                    ]);
+                $updated += $affected;
+            }
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return $this->sendError($e->getMessage());
+        }
+
+        return $this->sendResponse(['updated' => $updated], "{$updated} category mappings saved successfully.");
     }
 }

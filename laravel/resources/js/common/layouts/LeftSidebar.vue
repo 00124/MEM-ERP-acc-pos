@@ -605,6 +605,10 @@
                             @click="() => { menuSelected(); $router.push({ name: 'admin.accounting.supplier_ledger' }); }"
                             key="accounting_supplier_ledger"
                         >Supplier Ledger</a-menu-item>
+                        <a-menu-item
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.accounting.category_mapping' }); }"
+                            key="accounting_category_mapping"
+                        >Category Mapping</a-menu-item>
                     </a-sub-menu>
 
                     <a-menu-item
