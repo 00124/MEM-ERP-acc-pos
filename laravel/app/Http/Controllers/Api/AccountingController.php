@@ -514,8 +514,25 @@ class AccountingController extends ApiBaseController
             ->get(['id', 'account_code', 'account_name', 'account_type']);
 
         return $this->sendResponse([
-            'categories' => $categories,
-            'accounts'   => $accounts,
+            'categories' => $categories->map(function ($c) {
+                return [
+                    'id'                   => $c->id,
+                    'name'                 => $c->name,
+                    'slug'                 => $c->slug,
+                    'sales_account_id'     => $c->sales_account_id,
+                    'cogs_account_id'      => $c->cogs_account_id,
+                    'inventory_account_id' => $c->inventory_account_id,
+                    'purchase_account_id'  => $c->purchase_account_id,
+                ];
+            })->values()->all(),
+            'accounts' => $accounts->map(function ($a) {
+                return [
+                    'id'           => $a->id,
+                    'account_code' => $a->account_code,
+                    'account_name' => $a->account_name,
+                    'account_type' => $a->account_type,
+                ];
+            })->values()->all(),
         ], '');
     }
 
