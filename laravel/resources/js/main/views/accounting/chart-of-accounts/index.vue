@@ -1,7 +1,7 @@
 <template>
     <AdminPageHeader>
         <template #header>
-            <a-page-header :title="$t('menu.chart_of_accounts')" class="p-0">
+            <a-page-header title="Chart Of Accounts" class="p-0">
                 <template #extra>
                     <a-button type="primary" @click="openAddModal()">
                         <PlusOutlined /> {{ $t('common.add') }} Account
