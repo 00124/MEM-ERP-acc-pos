@@ -1118,6 +1118,7 @@ export default defineComponent({
         TeamOutlined,
         WalletOutlined,
         BankOutlined,
+        AccountBookOutlined,
         RocketOutlined,
         LaptopOutlined,
         CarOutlined,
