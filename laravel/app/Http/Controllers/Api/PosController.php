@@ -69,12 +69,16 @@ class PosController extends ApiBaseController
         }
 
 
-        $products =    $products->get();
+        $products = $products->get();
+
+        // Pre-load all units and taxes as lookup maps to avoid N+1 queries
+        $unitMap = Unit::all()->keyBy('id');
+        $taxMap  = Tax::all()->keyBy('id');
 
         foreach ($products as $product) {
             $stockQuantity = $product->current_stock;
-            $unit = $product->unit_id != null ? Unit::find($product->unit_id) : null;
-            $tax = $product->tax_id != null ? Tax::find($product->tax_id) : null;
+            $unit = $product->unit_id != null ? $unitMap->get($product->unit_id) : null;
+            $tax  = $product->tax_id  != null ? $taxMap->get($product->tax_id)   : null;
             $taxType = $product->sales_tax_type;
 
             $unitPrice = $product->sales_price;
