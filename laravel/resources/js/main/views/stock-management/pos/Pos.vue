@@ -1411,11 +1411,12 @@ export default {
             getPreFetchData();
         });
 
-        const reFetchProducts = () => {
+        const reFetchProducts = (searchTerm = "") => {
             axiosAdmin
                 .post("pos/products", {
                     brand_id: formData.value.brand_id,
                     category_id: formData.value.category_id,
+                    search_term: searchTerm || "",
                 })
                 .then((productResponse) => {
                     productLists.value = productResponse.data.products;
@@ -1428,6 +1429,9 @@ export default {
 
         const fetchAllSearchedProduct = (value) => {
             state.products = [];
+
+            // Always filter the product grid with the typed term
+            reFetchProducts(value || "");
 
             if (value != "") {
                 state.productFetching = true;

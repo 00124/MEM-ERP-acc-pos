@@ -68,6 +68,15 @@ class PosController extends ApiBaseController
             $products = $products->where('brand_id', '=', $brandId);
         }
 
+        // Search Term — LIKE across product name and item_code (SKU/model number)
+        if ($request->has('search_term') && trim($request->search_term) != "") {
+            $searchTerm = '%' . trim(strtolower($request->search_term)) . '%';
+            $products = $products->where(function ($query) use ($searchTerm) {
+                $query->where(\DB::raw('LOWER(products.name)'), 'LIKE', $searchTerm)
+                      ->orWhere(\DB::raw('LOWER(products.item_code)'), 'LIKE', $searchTerm)
+                      ->orWhere(\DB::raw('LOWER(products.parent_item_code)'), 'LIKE', $searchTerm);
+            });
+        }
 
         $products = $products->get();
 

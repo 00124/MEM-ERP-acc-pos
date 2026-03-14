@@ -386,10 +386,8 @@ class ProductController extends ApiBaseController
             $products = $products->whereNotIn('products.id', $convertedSelectedProducts);
         }
 
-        $products = $products->where(function ($query) {
-            $query->where('products.product_type', 'single')
-                ->orWhere('products.product_type', 'service');
-        })->take(8)->get();
+        // Include all product types (single, variable, service) so color/model variants all appear
+        $products = $products->take(50)->get();
 
         $allProducs = [];
 
