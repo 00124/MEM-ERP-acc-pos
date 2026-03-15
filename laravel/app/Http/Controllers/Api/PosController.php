@@ -218,6 +218,9 @@ class PosController extends ApiBaseController
         }
 
         $order = new Order();
+        // Determine sale mode: 'full', 'credit', 'advance'
+        $saleMode = $request->input('sale_mode', 'full');
+
         $order->order_type = $request->order_type == 'quotations' ? 'quotations' : 'sales';
         $order->invoice_type = "pos";
         $order->unique_id = Common::generateOrderUniqueId();
@@ -234,7 +237,13 @@ class PosController extends ApiBaseController
         $order->total = $orderDetails['subtotal'];
         $order->paid_amount = 0;
         $order->due_amount = $order->total;
-        $order->order_status = $posDefaultStatus;
+
+        // Advance booking → mark order as pending (not yet fulfilled)
+        if ($saleMode === 'advance') {
+            $order->order_status = 'pending';
+        } else {
+            $order->order_status = $posDefaultStatus;
+        }
 
         // Use selected salesman if provided, otherwise default to logged-in user
         $salesmanXid = $request->input('salesman_xid', null);
@@ -291,7 +300,7 @@ class PosController extends ApiBaseController
 
         // Auto-generate journal entry for POS sale
         $order->refresh();
-        AccountingService::handleOrder($order);
+        AccountingService::handleOrder($order, $saleMode);
 
         $savedOrder = Order::select('id', 'unique_id', 'invoice_number', 'user_id', 'staff_user_id', 'order_date', 'discount', 'shipping', 'tax_amount', 'subtotal', 'total', 'paid_amount', 'due_amount', 'total_items', 'total_quantity', 'order_type')
             ->with(['user:id,name,email,phone', 'items:id,order_id,product_id,unit_id,unit_price,subtotal,quantity,mrp,total_tax,warehouse_id', 'items.product:id,name', 'items.unit:id,name,short_name', 'items.warehouse:id,name', 'orderPayments:id,order_id,payment_id,amount', 'orderPayments.payment:id,payment_mode_id', 'orderPayments.payment.paymentMode:id,name', 'staffMember:id,name'])
@@ -314,5 +323,114 @@ class PosController extends ApiBaseController
         return ApiResponse::make('POS Data Saved', [
             'order' => $savedOrder,
         ]);
+    }
+
+    // ─── RECEIVE PAYMENT AGAINST EXISTING DUE BALANCE ─────────────────────
+    public function receiveDuePayment()
+    {
+        $request   = request();
+        $warehouse = warehouse();
+
+        // Resolve order
+        $orderId = $this->getIdFromHash($request->order_xid);
+        $order   = Order::find($orderId);
+
+        if (!$order) {
+            throw new ApiException('Order not found');
+        }
+
+        $dueAmount  = round((float)$order->due_amount, 2);
+        $payAmount  = round((float)$request->amount, 2);
+
+        if ($payAmount <= 0) {
+            throw new ApiException('Payment amount must be greater than zero');
+        }
+
+        if ($payAmount > $dueAmount + 0.01) {
+            throw new ApiException("Payment amount ({$payAmount}) cannot exceed due amount ({$dueAmount})");
+        }
+
+        // Resolve payment mode
+        $paymentModeId = '';
+        if ($request->payment_mode_xid) {
+            $paymentModeId = $this->getIdFromHash($request->payment_mode_xid);
+        }
+
+        // Create payment record
+        $payment = new Payment();
+        $payment->warehouse_id    = $warehouse->id;
+        $payment->payment_type    = 'in';
+        $payment->date            = Carbon::now();
+        $payment->amount          = $payAmount;
+        $payment->paid_amount     = $payAmount;
+        $payment->payment_mode_id = $paymentModeId ?: null;
+        $payment->notes           = $request->notes ?? '';
+        $payment->user_id         = $order->user_id;
+        $payment->company_id      = $order->company_id ?? 1;
+        $payment->save();
+
+        $payment->payment_number = Common::getTransactionNumber('payment-in', $payment->id);
+        $payment->save();
+
+        // Link payment to order
+        $orderPayment             = new OrderPayment();
+        $orderPayment->order_id   = $order->id;
+        $orderPayment->payment_id = $payment->id;
+        $orderPayment->amount     = $payAmount;
+        $orderPayment->save();
+
+        // Recalculate order amounts
+        Common::updateOrderAmount($order->id);
+        $order->refresh();
+
+        // Post accounting: DR Cash, CR AR
+        AccountingService::onPaymentReceived($payment, $order);
+
+        return ApiResponse::make('Payment received successfully', [
+            'order'   => [
+                'xid'         => $order->xid,
+                'invoice_number' => $order->invoice_number,
+                'total'       => $order->total,
+                'paid_amount' => $order->paid_amount,
+                'due_amount'  => $order->due_amount,
+            ],
+            'payment' => [
+                'payment_number' => $payment->payment_number,
+                'amount'         => $payment->amount,
+            ],
+        ]);
+    }
+
+    // ─── CUSTOMER DUE ORDERS ──────────────────────────────────────────────
+    public function customerDueOrders()
+    {
+        $request    = request();
+        $customerId = $this->getIdFromHash($request->customer_xid ?? '');
+
+        $query = Order::select('id', 'invoice_number', 'order_date', 'total', 'paid_amount', 'due_amount', 'order_status', 'user_id')
+            ->where('order_type', 'sales')
+            ->where('due_amount', '>', 0);
+
+        if ($customerId) {
+            $query->where('user_id', $customerId);
+        }
+
+        if ($request->invoice_number) {
+            $query->where('invoice_number', 'like', '%' . $request->invoice_number . '%');
+        }
+
+        $orders = $query->orderByDesc('order_date')->limit(50)->get();
+
+        $result = $orders->map(fn($o) => [
+            'xid'            => $o->xid,
+            'invoice_number' => $o->invoice_number,
+            'order_date'     => $o->order_date,
+            'total'          => $o->total,
+            'paid_amount'    => $o->paid_amount,
+            'due_amount'     => $o->due_amount,
+            'order_status'   => $o->order_status,
+        ]);
+
+        return ApiResponse::make('Customer due orders', ['orders' => $result]);
     }
 }

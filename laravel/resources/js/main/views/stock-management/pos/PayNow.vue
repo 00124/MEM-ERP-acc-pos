@@ -87,14 +87,32 @@
                                     {{ $t("payments.add") }}
                                 </a-button>
                             </a-col>
-                            <a-col :xs="24" :sm="24" :md="10" :lg="10">
+                            <a-col :xs="24" :sm="24" :md="14" :lg="14">
                                 <a-button
                                     :loading="loading"
                                     :block="true"
-                                    @click="completeOrder"
+                                    type="primary"
+                                    @click="() => completeOrder('full')"
                                 >
                                     {{ $t("stock.complete_order") }}
                                     <RightOutlined />
+                                </a-button>
+                                <a-button
+                                    :loading="loading"
+                                    :block="true"
+                                    style="margin-top: 8px; border-color: #d48806; color: #d48806;"
+                                    @click="() => completeOrder('credit')"
+                                >
+                                    Credit Sale (No Payment)
+                                </a-button>
+                                <a-button
+                                    :loading="loading"
+                                    :block="true"
+                                    type="dashed"
+                                    style="margin-top: 8px; border-color: #722ed1; color: #722ed1;"
+                                    @click="() => completeOrder('advance')"
+                                >
+                                    Advance Booking
                                 </a-button>
                             </a-col>
                         </a-row>
@@ -370,13 +388,14 @@ export default {
             });
         };
 
-        const completeOrder = () => {
+        const completeOrder = (saleMode = "full") => {
             const newFormDataObject = {
                 all_payments: allPaymentRecords.value,
                 product_items: props.selectedProducts,
                 details: props.data,
                 selected_warehouse_xid: props.sellingWarehouseXid || null,
                 salesman_xid: selectedSalesmanXid.value || null,
+                sale_mode: saleMode || "full",
             };
 
             addEditRequestAdmin({
