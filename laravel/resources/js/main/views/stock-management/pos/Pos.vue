@@ -31,7 +31,7 @@
             class="mt-5"
             style="margin: 10px 16px 0"
         >
-            <a-col :xs="24" :sm="24" :md="24" :lg="10" :xl="10">
+            <a-col :xs="24" :sm="24" :md="10" :lg="10" :xl="10">
                 <div class="pos-left-wrapper">
                     <div class="pos-left-header">
                         <a-card
@@ -548,7 +548,7 @@
                 class="right-pos-sidebar"
                 :xs="24"
                 :sm="24"
-                :md="24"
+                :md="14"
                 :lg="14"
                 :xl="14"
             >
@@ -1407,8 +1407,14 @@ export default {
         // For mobile Design
         const showMobileCart = ref(false);
 
+        // Reactive innerWidth (updates on window resize)
+        const innerWidth = ref(window.innerWidth);
+
         onMounted(() => {
             getPreFetchData();
+            window.addEventListener("resize", () => {
+                innerWidth.value = window.innerWidth;
+            });
         });
 
         const reFetchProducts = (searchTerm = "") => {
@@ -2006,7 +2012,7 @@ export default {
             printInvoiceOrder,
 
             postLayout,
-            innerWidth: window.innerWidth,
+            innerWidth,
 
             inputValueChanged,
 
