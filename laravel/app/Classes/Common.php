@@ -459,6 +459,34 @@ class Common
         }
     }
 
+    /**
+     * Fast-path stock update for new orders: directly increment/decrement current_stock
+     * instead of recalculating from all historical orders (9 queries → 2 queries).
+     * Only safe for new inserts; use recalculateOrderStock for edits/deletes.
+     */
+    public static function applyStockDelta($warehouseId, $productId, $delta)
+    {
+        $productDetails = ProductDetails::withoutGlobalScope('current_warehouse')
+            ->where('warehouse_id', '=', $warehouseId)
+            ->where('product_id', '=', $productId)
+            ->first();
+
+        if (!$productDetails) {
+            $productDetails = self::createProductDetailsForWarehouseIfNotExists($warehouseId, $productId);
+        }
+
+        $currentStock = $productDetails->current_stock + $delta;
+        $productDetails->current_stock = $currentStock;
+
+        if ($productDetails->stock_quantitiy_alert != null && $currentStock < $productDetails->stock_quantitiy_alert) {
+            $productDetails->status = 'out_of_stock';
+        } else {
+            $productDetails->status = 'in_stock';
+        }
+
+        $productDetails->save();
+    }
+
     public static function recalculateOrderStock($warehouseId, $productId)
     {
         $purchaseOrderCount = self::calculateOrderCount('purchases', $warehouseId, $productId);
@@ -634,6 +662,13 @@ class Common
 
         $orderSubTotal = 0;
         $totalQuantities = 0;
+
+        // Collect unique (warehouseId => [productIds]) pairs for batched stock updates.
+        // $stockDeltaPairs: fast-path direct delta for new orders [warehouseId, productId, delta]
+        // $stockRecalcPairs: full recalculate for edits/stock-transfers [warehouseId, productId]
+        $stockDeltaPairs  = [];
+        $stockRecalcPairs = [];
+
         if (count($productItems) > 0) {
 
             foreach ($productItems as $productItem) {
@@ -710,20 +745,37 @@ class Common
                     }
                 }
 
-                // Use per-item warehouse_id if set, otherwise fall back to order warehouse
-                $warehouseId = $orderItem->warehouse_id ?: $order->warehouse_id;
-                $productId = $orderItem->product_id;
+                // Queue stock updates — batch to avoid redundant queries for duplicate products
+                $itemWarehouseId = $orderItem->warehouse_id ?: $order->warehouse_id;
+                $itemProductId   = $orderItem->product_id;
+                $itemQty         = $productItem->quantity;
 
-                // Update warehouse stock for product
-                self::recalculateOrderStock($warehouseId, $productId);
+                if ($actionType === 'add' && $orderType !== 'stock-transfers') {
+                    // Fast path for new orders: directly apply quantity delta (2 queries vs 9)
+                    // Direction: sales/purchase-returns take stock out (-), everything else adds stock in (+)
+                    $stockOutTypes = ['sales', 'purchase-returns'];
+                    $deltaSign = in_array($orderType, $stockOutTypes) ? -1 : 1;
+                    $key = $itemWarehouseId . '_' . $itemProductId;
+                    if (!isset($stockDeltaPairs[$key])) {
+                        $stockDeltaPairs[$key] = [$itemWarehouseId, $itemProductId, 0];
+                    }
+                    $stockDeltaPairs[$key][2] += $deltaSign * $itemQty;
 
-                // If item warehouse differs from order warehouse, also recalculate order warehouse
-                if ($orderItem->warehouse_id && $orderItem->warehouse_id != $order->warehouse_id) {
-                    self::recalculateOrderStock($order->warehouse_id, $productId);
-                }
+                    // Edge case: item warehouse differs from order warehouse → full recalc for order warehouse
+                    if ($orderItem->warehouse_id && $orderItem->warehouse_id != $order->warehouse_id) {
+                        $stockRecalcPairs[$order->warehouse_id . '_' . $itemProductId] = [$order->warehouse_id, $itemProductId];
+                    }
+                } else {
+                    // Edit orders or stock-transfers: use full recalculate for correctness
+                    $stockRecalcPairs[$itemWarehouseId . '_' . $itemProductId] = [$itemWarehouseId, $itemProductId];
 
-                if ($orderType == "stock-transfers") {
-                    self::recalculateOrderStock($order->from_warehouse_id, $productId);
+                    if ($orderItem->warehouse_id && $orderItem->warehouse_id != $order->warehouse_id) {
+                        $stockRecalcPairs[$order->warehouse_id . '_' . $itemProductId] = [$order->warehouse_id, $itemProductId];
+                    }
+
+                    if ($orderType == "stock-transfers") {
+                        $stockRecalcPairs[$order->from_warehouse_id . '_' . $itemProductId] = [$order->from_warehouse_id, $itemProductId];
+                    }
                 }
 
                 $orderSubTotal += $orderItem->subtotal;
@@ -742,6 +794,16 @@ class Common
                     $stockHistory->created_by = $order->staff_user_id;
                     $stockHistory->save();
                 }
+            }
+
+            // Apply fast-path stock deltas (new orders): 2 queries per unique product/warehouse
+            foreach ($stockDeltaPairs as [$warehouseId, $productId, $delta]) {
+                self::applyStockDelta($warehouseId, $productId, $delta);
+            }
+
+            // Full recalculate for edits/stock-transfers/edge-cases: 9 queries per unique pair
+            foreach ($stockRecalcPairs as [$warehouseId, $productId]) {
+                self::recalculateOrderStock($warehouseId, $productId);
             }
 
             $order->total_items = count($productItems);
