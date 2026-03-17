@@ -180,10 +180,11 @@ class PosController extends ApiBaseController
 
     public function savePosPayments()
     {
-
+        $t0 = microtime(true);
         $request = request();
         $loggedInUser = user();
         $warehouse = warehouse();
+        \Log::info('[POS] start');
 
         // Use selected POS warehouse if provided
         if ($request->has('selected_warehouse_xid') && $request->selected_warehouse_xid) {
@@ -250,10 +251,10 @@ class PosController extends ApiBaseController
         $order->invoice_number = Common::getTransactionNumber($order->order_type, $order->id);
         $order->save();
 
-        Common::storeAndUpdateOrder($order, $oldOrderId);
-
-        // Updating Warehouse History
-        Common::updateWarehouseHistory('order', $order, "add_edit");
+        // Defer updateOrderAmount — will call once after payments are saved
+        \Log::info('[POS] before storeAndUpdateOrder t=' . round(microtime(true)-$t0, 2));
+        Common::storeAndUpdateOrder($order, $oldOrderId, true);
+        \Log::info('[POS] after storeAndUpdateOrder t=' . round(microtime(true)-$t0, 2));
 
         $allPayments = $request->input('all_payments', []);
         if (!is_array($allPayments)) {
@@ -287,11 +288,19 @@ class PosController extends ApiBaseController
             }
         }
 
+        // Single updateOrderAmount after payments — correct final state (skip inside updateWarehouseHistory)
+        \Log::info('[POS] before updateOrderAmount t=' . round(microtime(true)-$t0, 2));
         Common::updateOrderAmount($order->id);
+        \Log::info('[POS] after updateOrderAmount t=' . round(microtime(true)-$t0, 2));
+
+        // Updating Warehouse History after payments so status is correct; skip its internal updateOrderAmount
+        $order->refresh();
+        Common::updateWarehouseHistory('order', $order, "add_edit", true);
+        \Log::info('[POS] after updateWarehouseHistory t=' . round(microtime(true)-$t0, 2));
 
         // Auto-generate journal entry for POS sale
-        $order->refresh();
         AccountingService::handleOrder($order);
+        \Log::info('[POS] after handleOrder t=' . round(microtime(true)-$t0, 2));
 
         $savedOrder = Order::select('id', 'unique_id', 'invoice_number', 'user_id', 'staff_user_id', 'order_date', 'discount', 'shipping', 'tax_amount', 'subtotal', 'total', 'paid_amount', 'due_amount', 'total_items', 'total_quantity', 'order_type')
             ->with(['user:id,name,email,phone', 'items:id,order_id,product_id,unit_id,unit_price,subtotal,quantity,mrp,total_tax,warehouse_id', 'items.product:id,name', 'items.unit:id,name,short_name', 'items.warehouse:id,name', 'orderPayments:id,order_id,payment_id,amount', 'orderPayments.payment:id,payment_mode_id', 'orderPayments.payment.paymentMode:id,name', 'staffMember:id,name'])
