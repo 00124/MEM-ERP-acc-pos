@@ -37,12 +37,11 @@ trait UserTraits
         });
 
         if ($request->has('dates') && $request->dates != '') {
-            dd($request);
             $dates = explode(',', $request->dates);
             $startDate = $dates[0];
-            $endDate = $dates[1];
+            $endDate = isset($dates[1]) ? $dates[1] : $dates[0];
 
-            $query = $query->whereRaw('users.created_at ==', [$startDate]);
+            $query = $query->whereBetween('users.created_at', [$startDate, $endDate]);
         }
 
 
