@@ -6,284 +6,242 @@
         :open="visible"
         @close="drawerClosed"
     >
-        <a-row>
+        <a-row :gutter="[16, 16]">
+            <!-- LEFT: Order Summary -->
             <a-col :xs="24" :sm="24" :md="8" :lg="8">
-                <a-row>
-                    <a-col :span="24">
-                        <a-statistic
-                            :title="$t('stock.total_items')"
-                            :value="selectedProducts.length"
-                            style="margin-right: 50px"
-                        />
-                    </a-col>
-                    <a-col :span="24" class="mt-20">
-                        <a-statistic
-                            :title="$t('stock.paying_amount')"
-                            :value="formatAmountCurrency(totalEnteredAmount)"
-                        />
-                    </a-col>
-                    <a-col :span="24" class="mt-20">
-                        <a-statistic
-                            :title="$t('stock.payable_amount')"
-                            :value="formatAmountCurrency(data.subtotal)"
-                        />
-                    </a-col>
-                    <a-col :span="24" class="mt-20">
-                        <a-statistic
-                            v-if="totalEnteredAmount <= data.subtotal"
-                            :title="$t('payments.due_amount')"
-                            :value="
-                                formatAmountCurrency(
-                                    data.subtotal - totalEnteredAmount
-                                )
-                            "
-                        />
-                        <a-statistic
-                            v-else
-                            :title="$t('stock.change_return')"
-                            :value="
-                                formatAmountCurrency(
-                                    totalEnteredAmount - data.subtotal
-                                )
-                            "
-                        />
-                    </a-col>
-                </a-row>
+                <a-card size="small" style="background: #f8f9fa;">
+                    <a-statistic
+                        :title="$t('stock.total_items')"
+                        :value="selectedProducts.length"
+                        style="margin-bottom: 16px"
+                    />
+                    <a-divider style="margin: 8px 0" />
+                    <a-statistic
+                        :title="$t('stock.payable_amount')"
+                        :value="formatAmountCurrency(data.subtotal)"
+                        style="margin-bottom: 12px"
+                    />
+                    <a-statistic
+                        :title="$t('stock.paying_amount')"
+                        :value="formatAmountCurrency(totalEnteredAmount)"
+                        style="margin-bottom: 12px"
+                    />
+                    <a-divider style="margin: 8px 0" />
+                    <a-statistic
+                        v-if="totalEnteredAmount <= data.subtotal"
+                        :title="$t('payments.due_amount')"
+                        :value="formatAmountCurrency(data.subtotal - totalEnteredAmount)"
+                        :value-style="{ color: data.subtotal - totalEnteredAmount > 0 ? '#cf1322' : '#3f8600' }"
+                    />
+                    <a-statistic
+                        v-else
+                        :title="$t('stock.change_return')"
+                        :value="formatAmountCurrency(totalEnteredAmount - data.subtotal)"
+                        :value-style="{ color: '#3f8600' }"
+                    />
+                </a-card>
             </a-col>
-            <a-col :xs="24" :sm="24" :md="16" :lg="16">
-                <a-row :gutter="[24, 24]">
-                    <!-- Salesman Selection -->
-                    <a-col :span="24">
-                        <a-form-item label="Salesman">
-                            <a-select
-                                v-model:value="selectedSalesmanXid"
-                                placeholder="Select Salesman"
-                                style="width: 100%"
-                                optionFilterProp="label"
-                                show-search
-                                allow-clear
-                            >
-                                <a-select-option
-                                    v-for="salesman in salesmen"
-                                    :key="salesman.xid"
-                                    :value="salesman.xid"
-                                    :label="salesman.name"
-                                >
-                                    {{ salesman.name }}
-                                </a-select-option>
-                            </a-select>
-                        </a-form-item>
-                    </a-col>
 
-                    <a-col :span="24" v-if="!showAddForm">
-                        <a-row :gutter="[16, 8]" class="mt-20">
-                            <a-col :xs="24" :sm="24" :md="10" :lg="10">
-                                <a-button
-                                    :block="true"
-                                    type="primary"
-                                    @click="() => (showAddForm = true)"
-                                >
-                                    <PlusOutlined />
-                                    {{ $t("payments.add") }}
-                                </a-button>
-                            </a-col>
-                            <a-col :xs="24" :sm="24" :md="14" :lg="14">
-                                <a-button
-                                    :loading="loading"
-                                    :block="true"
-                                    type="primary"
-                                    @click="() => completeOrder('full')"
-                                >
-                                    {{ $t("stock.complete_order") }}
-                                    <RightOutlined />
-                                </a-button>
-                                <a-button
-                                    :loading="loading"
-                                    :block="true"
-                                    style="margin-top: 8px; border-color: #d48806; color: #d48806;"
-                                    @click="() => completeOrder('credit')"
-                                >
-                                    Credit Sale (No Payment)
-                                </a-button>
-                                <a-button
-                                    :loading="loading"
-                                    :block="true"
-                                    type="dashed"
-                                    style="margin-top: 8px; border-color: #722ed1; color: #722ed1;"
-                                    @click="() => completeOrder('advance')"
-                                >
-                                    Advance Booking
-                                </a-button>
-                            </a-col>
-                        </a-row>
-                    </a-col>
-                    <a-col :span="24" v-else>
-                        <a-row>
-                            <a-col :xs="24" :sm="24" :md="10" :lg="10">
-                                <a-button
-                                    :block="true"
-                                    type="primary"
-                                    @click="goBack"
-                                >
-                                    <LeftOutlined />
-                                    {{ $t("common.back") }}
-                                </a-button>
-                            </a-col>
-                        </a-row>
-                    </a-col>
-                    <a-col :span="24" v-if="!showAddForm">
-                        <a-table
-                            :dataSource="allPaymentRecords"
-                            :columns="paymentRecordsColumns"
-                            :pagination="false"
+            <!-- RIGHT: Payment Form -->
+            <a-col :xs="24" :sm="24" :md="16" :lg="16">
+                <!-- Salesman -->
+                <a-form-item label="Salesman" style="margin-bottom: 12px;">
+                    <a-select
+                        v-model:value="selectedSalesmanXid"
+                        placeholder="Select Salesman (optional)"
+                        style="width: 100%"
+                        optionFilterProp="label"
+                        show-search
+                        allow-clear
+                    >
+                        <a-select-option
+                            v-for="salesman in salesmen"
+                            :key="salesman.xid"
+                            :value="salesman.xid"
+                            :label="salesman.name"
                         >
-                            <template #bodyCell="{ column, record }">
-                                <template
-                                    v-if="column.dataIndex === 'payment_mode'"
+                            {{ salesman.name }}
+                        </a-select-option>
+                    </a-select>
+                </a-form-item>
+
+                <a-divider style="margin: 8px 0" />
+
+                <!-- Quick Pay: always visible -->
+                <div style="background: #f0f5ff; border: 1px solid #adc6ff; border-radius: 6px; padding: 14px; margin-bottom: 14px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #2f54eb;">
+                        Payment
+                    </div>
+                    <a-row :gutter="12">
+                        <a-col :xs="24" :sm="12">
+                            <a-form-item
+                                :label="$t('payments.payment_mode')"
+                                style="margin-bottom: 8px"
+                            >
+                                <a-select
+                                    v-model:value="formData.payment_mode_id"
+                                    placeholder="Select Mode"
+                                    style="width: 100%"
+                                    allow-clear
                                 >
-                                    {{
-                                        getPaymentModeName(
-                                            record.payment_mode_id
-                                        )
-                                    }}
-                                </template>
-                                <template v-if="column.dataIndex === 'amount'">
-                                    {{ formatAmountCurrency(record.amount) }}
-                                </template>
-                                <template v-if="column.dataIndex === 'action'">
-                                    <a-button
-                                        type="primary"
-                                        @click="deletePayment(record.id)"
-                                        danger
+                                    <a-select-option
+                                        v-for="mode in paymentModes"
+                                        :key="mode.xid"
+                                        :value="mode.xid"
                                     >
-                                        <template #icon
-                                            ><DeleteOutlined
-                                        /></template>
-                                    </a-button>
-                                </template>
+                                        {{ mode.name }}
+                                    </a-select-option>
+                                </a-select>
+                            </a-form-item>
+                        </a-col>
+                        <a-col :xs="24" :sm="12">
+                            <a-form-item
+                                :label="$t('stock.paying_amount')"
+                                style="margin-bottom: 8px"
+                            >
+                                <a-input-number
+                                    v-model:value="formData.amount"
+                                    :prefix="appSetting.currency.symbol"
+                                    style="width: 100%"
+                                    :min="0"
+                                    :precision="2"
+                                />
+                            </a-form-item>
+                        </a-col>
+                    </a-row>
+                    <a-row :gutter="12">
+                        <a-col :span="24">
+                            <a-form-item label="Notes (optional)" style="margin-bottom: 4px">
+                                <a-input
+                                    v-model:value="formData.notes"
+                                    placeholder="Notes"
+                                />
+                            </a-form-item>
+                        </a-col>
+                    </a-row>
+                </div>
+
+                <!-- Split payments list -->
+                <div v-if="allPaymentRecords.length > 0" style="margin-bottom: 12px;">
+                    <div style="font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #595959;">
+                        Additional Payments
+                    </div>
+                    <a-table
+                        :dataSource="allPaymentRecords"
+                        :columns="paymentRecordsColumns"
+                        :pagination="false"
+                        size="small"
+                    >
+                        <template #bodyCell="{ column, record }">
+                            <template v-if="column.dataIndex === 'payment_mode'">
+                                {{ getPaymentModeName(record.payment_mode_id) }}
                             </template>
-                        </a-table>
+                            <template v-if="column.dataIndex === 'amount'">
+                                {{ formatAmountCurrency(record.amount) }}
+                            </template>
+                            <template v-if="column.dataIndex === 'action'">
+                                <a-button
+                                    type="link"
+                                    danger
+                                    size="small"
+                                    @click="deletePayment(record.id)"
+                                >
+                                    <template #icon><DeleteOutlined /></template>
+                                </a-button>
+                            </template>
+                        </template>
+                    </a-table>
+                </div>
+
+                <!-- Add Split Payment button -->
+                <a-button
+                    v-if="!showSplitForm"
+                    size="small"
+                    style="margin-bottom: 14px;"
+                    @click="showSplitForm = true"
+                >
+                    <PlusOutlined />
+                    Add Split Payment
+                </a-button>
+
+                <!-- Split payment form -->
+                <div v-if="showSplitForm" style="border: 1px solid #d9d9d9; border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+                    <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px;">Add Another Payment Method</div>
+                    <a-row :gutter="12">
+                        <a-col :xs="24" :sm="12">
+                            <a-form-item label="Mode" style="margin-bottom: 8px">
+                                <a-select
+                                    v-model:value="splitFormData.payment_mode_id"
+                                    placeholder="Select Mode"
+                                    style="width: 100%"
+                                    allow-clear
+                                >
+                                    <a-select-option
+                                        v-for="mode in paymentModes"
+                                        :key="mode.xid"
+                                        :value="mode.xid"
+                                    >
+                                        {{ mode.name }}
+                                    </a-select-option>
+                                </a-select>
+                            </a-form-item>
+                        </a-col>
+                        <a-col :xs="24" :sm="12">
+                            <a-form-item label="Amount" style="margin-bottom: 8px">
+                                <a-input-number
+                                    v-model:value="splitFormData.amount"
+                                    style="width: 100%"
+                                    :min="0"
+                                    :precision="2"
+                                />
+                            </a-form-item>
+                        </a-col>
+                    </a-row>
+                    <a-space>
+                        <a-button type="primary" size="small" @click="addSplitPayment">
+                            <CheckOutlined /> Add
+                        </a-button>
+                        <a-button size="small" @click="showSplitForm = false; splitFormData = { payment_mode_id: undefined, amount: 0, notes: '' }">
+                            Cancel
+                        </a-button>
+                    </a-space>
+                </div>
+
+                <!-- Complete Order Buttons -->
+                <a-row :gutter="[8, 8]">
+                    <a-col :span="24">
+                        <a-button
+                            :loading="loading"
+                            block
+                            type="primary"
+                            size="large"
+                            style="height: 48px; font-size: 16px; font-weight: 600;"
+                            @click="() => completeOrder('full')"
+                        >
+                            {{ $t("stock.complete_order") }}
+                            <RightOutlined />
+                        </a-button>
                     </a-col>
-                    <a-col :span="24" v-else>
-                        <a-form layout="vertical">
-                            <a-row :gutter="16">
-                                <a-col :xs="24" :sm="24" :md="12" :lg="12">
-                                    <a-form-item
-                                        :label="$t('payments.payment_mode')"
-                                        name="payment_mode_id"
-                                        :help="
-                                            rules.payment_mode_id
-                                                ? rules.payment_mode_id.message
-                                                : null
-                                        "
-                                        :validateStatus="
-                                            rules.payment_mode_id
-                                                ? 'error'
-                                                : null
-                                        "
-                                    >
-                                        <a-select
-                                            v-model:value="
-                                                formData.payment_mode_id
-                                            "
-                                            :placeholder="
-                                                $t(
-                                                    'common.select_default_text',
-                                                    [
-                                                        $t(
-                                                            'payments.payment_mode'
-                                                        ),
-                                                    ]
-                                                )
-                                            "
-                                            :allowClear="true"
-                                        >
-                                            <a-select-option
-                                                v-for="paymentMode in paymentModes"
-                                                :key="paymentMode.xid"
-                                                :value="paymentMode.xid"
-                                            >
-                                                {{ paymentMode.name }}
-                                            </a-select-option>
-                                        </a-select>
-                                    </a-form-item>
-                                </a-col>
-                                <a-col :xs="24" :sm="24" :md="12" :lg="12">
-                                    <a-form-item
-                                        :label="$t('stock.paying_amount')"
-                                        name="amount"
-                                        :help="
-                                            rules.amount
-                                                ? rules.amount.message
-                                                : null
-                                        "
-                                        :validateStatus="
-                                            rules.amount ? 'error' : null
-                                        "
-                                    >
-                                        <a-input
-                                            :prefix="appSetting.currency.symbol"
-                                            v-model:value="formData.amount"
-                                            :placeholder="
-                                                $t(
-                                                    'common.placeholder_default_text',
-                                                    [$t('stock.payable_amount')]
-                                                )
-                                            "
-                                        />
-                                        <small
-                                            style="color: #7c8db5 !important"
-                                        >
-                                            {{ $t("stock.payable_amount") }}
-                                            <span>
-                                                {{
-                                                    formatAmountCurrency(
-                                                        data.subtotal
-                                                    )
-                                                }}
-                                            </span>
-                                        </small>
-                                    </a-form-item>
-                                </a-col>
-                            </a-row>
-                            <a-row :gutter="16">
-                                <a-col :xs="24" :sm="24" :md="24" :lg="24">
-                                    <a-form-item
-                                        :label="$t('payments.notes')"
-                                        name="notes"
-                                        :help="
-                                            rules.notes
-                                                ? rules.notes.message
-                                                : null
-                                        "
-                                        :validateStatus="
-                                            rules.notes ? 'error' : null
-                                        "
-                                    >
-                                        <a-textarea
-                                            v-model:value="formData.notes"
-                                            :placeholder="$t('payments.notes')"
-                                            :rows="5"
-                                        />
-                                    </a-form-item>
-                                </a-col>
-                            </a-row>
-                            <a-row :gutter="16">
-                                <a-col :xs="24" :sm="24" :md="24" :lg="24">
-                                    <a-button
-                                        type="primary"
-                                        :loading="loading"
-                                        @click="onSubmit"
-                                        block
-                                    >
-                                        <template #icon>
-                                            <CheckOutlined />
-                                        </template>
-                                        {{ $t("common.add") }}
-                                    </a-button>
-                                </a-col>
-                            </a-row>
-                        </a-form>
+                    <a-col :xs="24" :sm="12">
+                        <a-button
+                            :loading="loading"
+                            block
+                            style="border-color: #d48806; color: #d48806;"
+                            @click="() => completeOrder('credit')"
+                        >
+                            Credit Sale
+                        </a-button>
+                    </a-col>
+                    <a-col :xs="24" :sm="12">
+                        <a-button
+                            :loading="loading"
+                            block
+                            type="dashed"
+                            style="border-color: #722ed1; color: #722ed1;"
+                            @click="() => completeOrder('advance')"
+                        >
+                            Advance Booking
+                        </a-button>
                     </a-col>
                 </a-row>
             </a-col>
@@ -292,11 +250,10 @@
 </template>
 
 <script>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import {
     CheckOutlined,
     PlusOutlined,
-    LeftOutlined,
     RightOutlined,
     DeleteOutlined,
 } from "@ant-design/icons-vue";
@@ -311,7 +268,6 @@ export default {
     components: {
         CheckOutlined,
         PlusOutlined,
-        LeftOutlined,
         RightOutlined,
         DeleteOutlined,
     },
@@ -321,76 +277,92 @@ export default {
         const paymentModes = ref([]);
         const salesmen = ref([]);
         const selectedSalesmanXid = ref(undefined);
+
         const formData = ref({
             payment_mode_id: undefined,
             amount: 0,
             notes: "",
         });
+
+        const splitFormData = ref({
+            payment_mode_id: undefined,
+            amount: 0,
+            notes: "",
+        });
+
+        const showSplitForm = ref(false);
+
         const { t } = useI18n();
         const allPaymentRecords = ref([]);
         const paymentRecordsColumns = ref([
-            {
-                title: t("payments.payment_mode"),
-                dataIndex: "payment_mode",
-            },
-            {
-                title: t("payments.amount"),
-                dataIndex: "amount",
-            },
-            {
-                title: t("common.action"),
-                dataIndex: "action",
-            },
+            { title: t("payments.payment_mode"), dataIndex: "payment_mode" },
+            { title: t("payments.amount"), dataIndex: "amount" },
+            { title: t("common.action"), dataIndex: "action" },
         ]);
-        const showAddForm = ref(false);
 
         onMounted(() => {
             axiosAdmin.get("payment-modes").then((response) => {
                 paymentModes.value = response.data;
+                // Auto-select the first payment mode (usually Cash)
+                if (paymentModes.value.length > 0 && !formData.value.payment_mode_id) {
+                    formData.value.payment_mode_id = paymentModes.value[0].xid;
+                }
             });
             axiosAdmin.get("users?user_type=staff_members&limit=10000").then((response) => {
                 salesmen.value = response.data || [];
             });
         });
 
+        // Auto-fill amount with grand total when drawer opens
+        watch(() => props.visible, (newVal) => {
+            if (newVal) {
+                formData.value.amount = props.data.subtotal || 0;
+                // Auto-select first payment mode
+                if (paymentModes.value.length > 0 && !formData.value.payment_mode_id) {
+                    formData.value.payment_mode_id = paymentModes.value[0].xid;
+                }
+            }
+        });
+
+        // Also watch subtotal so if products change, amount updates
+        watch(() => props.data && props.data.subtotal, (newVal) => {
+            if (props.visible && allPaymentRecords.value.length === 0) {
+                formData.value.amount = newVal || 0;
+            }
+        });
+
         const drawerClosed = () => {
-            formData.value = {
-                payment_mode_id: undefined,
-                amount: 0,
-                notes: "",
-            };
+            formData.value = { payment_mode_id: paymentModes.value[0]?.xid || undefined, amount: 0, notes: "" };
+            splitFormData.value = { payment_mode_id: undefined, amount: 0, notes: "" };
             allPaymentRecords.value = [];
             selectedSalesmanXid.value = undefined;
+            showSplitForm.value = false;
             emit("closed");
         };
 
-        const onSubmit = () => {
-            addEditRequestAdmin({
-                url: "pos/payment",
-                data: formData.value,
-                success: (res) => {
-                    allPaymentRecords.value = [
-                        ...allPaymentRecords.value,
-                        {
-                            ...formData.value,
-                            id: Math.random().toString(36).slice(2),
-                        },
-                    ];
-
-                    formData.value = {
-                        payment_mode_id: undefined,
-                        amount: 0,
-                        notes: "",
-                    };
-
-                    showAddForm.value = false;
-                },
-            });
+        const addSplitPayment = () => {
+            if (!splitFormData.value.payment_mode_id || !splitFormData.value.amount) return;
+            allPaymentRecords.value = [
+                ...allPaymentRecords.value,
+                { ...splitFormData.value, id: Math.random().toString(36).slice(2) },
+            ];
+            splitFormData.value = { payment_mode_id: undefined, amount: 0, notes: "" };
+            showSplitForm.value = false;
         };
 
         const completeOrder = (saleMode = "full") => {
+            // Combine split records + the current quick-pay form entry
+            let allPayments = [...allPaymentRecords.value];
+            if (
+                saleMode === "full" &&
+                formData.value.amount > 0 &&
+                formData.value.payment_mode_id
+            ) {
+                allPayments = [...allPayments, { ...formData.value }];
+            }
+
             const newFormDataObject = {
-                all_payments: allPaymentRecords.value,
+                all_payments: allPayments,
                 product_items: props.selectedProducts,
                 details: props.data,
                 selected_warehouse_xid: props.sellingWarehouseXid || null,
@@ -403,56 +375,32 @@ export default {
                 data: newFormDataObject,
                 successMessage: props.successMessage,
                 success: (res) => {
-                    formData.value = {
-                        payment_mode_id: undefined,
-                        amount: 0,
-                        notes: "",
-                    };
-
+                    formData.value = { payment_mode_id: paymentModes.value[0]?.xid || undefined, amount: 0, notes: "" };
+                    splitFormData.value = { payment_mode_id: undefined, amount: 0, notes: "" };
                     allPaymentRecords.value = [];
-                    showAddForm.value = false;
+                    showSplitForm.value = false;
                     selectedSalesmanXid.value = undefined;
                     emit("success", res.order);
                 },
             });
         };
 
-        const goBack = () => {
-            formData.value = {
-                payment_mode_id: undefined,
-                amount: 0,
-                notes: "",
-            };
-
-            showAddForm.value = false;
-        };
-
         const getPaymentModeName = (paymentId) => {
             var selectedMode = find(paymentModes.value, ["xid", paymentId]);
-
             return selectedMode ? selectedMode.name : "-";
         };
 
         const deletePayment = (paymentId) => {
-            var newResult = filter(
+            allPaymentRecords.value = filter(
                 allPaymentRecords.value,
-                (newPaymentMode) => {
-                    return newPaymentMode.id != paymentId;
-                }
+                (p) => p.id !== paymentId
             );
-
-            allPaymentRecords.value = newResult;
         };
 
         const totalEnteredAmount = computed(() => {
-            var allPaymentSum = sumBy(
-                allPaymentRecords.value,
-                (newPaymentAmount) => {
-                    return parseFloat(newPaymentAmount.amount);
-                }
-            );
-
-            return allPaymentSum + parseFloat(formData.value.amount);
+            const splitSum = sumBy(allPaymentRecords.value, (p) => parseFloat(p.amount) || 0);
+            const quickAmt = parseFloat(formData.value.amount) || 0;
+            return splitSum + quickAmt;
         });
 
         return {
@@ -463,20 +411,18 @@ export default {
             salesmen,
             selectedSalesmanXid,
             formData,
+            splitFormData,
+            showSplitForm,
             appSetting,
             formatAmountCurrency,
-            onSubmit,
-
+            addSplitPayment,
             allPaymentRecords,
             paymentRecordsColumns,
-            showAddForm,
             completeOrder,
-            goBack,
             getPaymentModeName,
             deletePayment,
             totalEnteredAmount,
-
-            drawerWidth: window.innerWidth <= 991 ? "90%" : "50%",
+            drawerWidth: window.innerWidth <= 991 ? "90%" : "55%",
         };
     },
 };
