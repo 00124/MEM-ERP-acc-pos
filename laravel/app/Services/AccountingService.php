@@ -220,8 +220,8 @@ class AccountingService
     public static function onSaleCreated(Order $order): void
     {
         try {
-            $companyId = $order->company_id ?? 1;
-            $total     = round((float)$order->total, 2);
+            $companyId  = $order->company_id ?? 1;
+            $total      = round((float)$order->total, 2);
             if ($total <= 0) return;
 
             $date      = $order->order_date ?? now()->toDateString();
@@ -230,39 +230,110 @@ class AccountingService
             $items = self::loadItemsWithCategory($order, $companyId);
 
             // ── 1. REVENUE ENTRY ──────────────────────────────────────────
-            // DR: AR or Cash (total)
-            // CR: Per-category Sales Revenue (subtotals)
+            // Full payment:    DR Cash (total)          / CR Sales Revenue
+            // Partial payment: DR Cash (paid) + DR AR (due) / CR Sales Revenue
+            // Credit sale:     DR AR (total)            / CR Sales Revenue
             $paidAmount = round((float)$order->paid_amount, 2);
-            $debitAcctId = $paidAmount >= $total
-                ? self::getAccountId(self::CASH_IN_HAND, $companyId)
-                : self::getAccountId(self::ACCOUNTS_RECEIVABLE, $companyId);
+            $dueAmount  = round($total - $paidAmount, 2);
+
+            $cashAcctId = self::getAccountId(self::CASH_IN_HAND, $companyId);
+            $arAcctId   = self::getAccountId(self::ACCOUNTS_RECEIVABLE, $companyId);
 
             $revByAcct = self::sumByAccount($items, 'subtotal', 'sales_account_id');
             $revTotal  = array_sum($revByAcct);
 
-            // Build revenue lines
-            $revenueLines = [['account_id' => $debitAcctId, 'debit' => $revTotal ?: $total, 'credit' => 0, 'note' => 'Sale']];
+            // Build debit lines depending on payment scenario
+            $debitLines = [];
+            if ($paidAmount >= $total) {
+                // Full payment — DR Cash for full amount
+                $debitLines[] = ['account_id' => $cashAcctId, 'debit' => $total, 'credit' => 0, 'note' => 'Cash received (full)'];
+            } elseif ($paidAmount > 0) {
+                // Partial payment — DR Cash (paid portion) + DR AR (due portion)
+                $debitLines[] = ['account_id' => $cashAcctId, 'debit' => $paidAmount, 'credit' => 0, 'note' => 'Cash received (partial)'];
+                $debitLines[] = ['account_id' => $arAcctId,   'debit' => $dueAmount,  'credit' => 0, 'note' => 'Amount receivable'];
+            } else {
+                // Credit sale — DR AR for full amount
+                $debitLines[] = ['account_id' => $arAcctId, 'debit' => $total, 'credit' => 0, 'note' => 'Credit sale — full AR'];
+            }
+
+            // Build credit lines (sales revenue by category)
+            $creditLines = [];
             foreach ($revByAcct as $acctId => $amount) {
                 if ($amount > 0) {
-                    $revenueLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => $amount, 'note' => 'Sales revenue'];
+                    $creditLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => round($amount, 2), 'note' => 'Sales revenue'];
                 }
             }
             // Fallback if no items loaded
-            if (count($revenueLines) === 1) {
+            if (empty($creditLines)) {
                 $fallbackSales = self::getAccountId(self::SALES_REVENUE, $companyId);
-                $revenueLines[] = ['account_id' => $fallbackSales, 'debit' => 0, 'credit' => $total, 'note' => 'Sales revenue'];
-                $revenueLines[0]['debit'] = $total;
+                $creditLines[] = ['account_id' => $fallbackSales, 'debit' => 0, 'credit' => $total, 'note' => 'Sales revenue'];
             }
 
+            $revenueLines = array_merge($debitLines, $creditLines);
             self::createEntryById($companyId, "Sale — {$reference}", $reference, $date, $revenueLines);
 
             // ── 2. COGS ENTRY ─────────────────────────────────────────────
-            // DR: Per-category COGS
-            // CR: Per-category Inventory
+            // DR: Per-category COGS / CR: Per-category Inventory
             self::buildAndPostCogsEntry($items, $companyId, $date, $reference, "COGS — {$reference}");
 
         } catch (\Throwable $e) {
             Log::error('AccountingService::onSaleCreated — ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+        }
+    }
+
+    // ─── ADVANCE BOOKING ──────────────────────────────────────────────────
+    // DR: Cash/Bank (advance received)
+    // CR: Customer Advances — liability (account_code 23002)
+    public static function onAdvanceBookingCreated(Order $order): void
+    {
+        try {
+            $companyId  = $order->company_id ?? 1;
+            $paidAmount = round((float)$order->paid_amount, 2);
+            if ($paidAmount <= 0) return;
+
+            $date      = $order->order_date ?? now()->toDateString();
+            $reference = $order->invoice_number;
+
+            // Determine cash/bank account from first payment
+            $firstPayment = $order->orderPayments()->with('payment.paymentMode')->first();
+            $cashAcct = self::CASH_IN_HAND;
+            if ($firstPayment && $firstPayment->payment && $firstPayment->payment->paymentMode) {
+                if ($firstPayment->payment->paymentMode->mode_type === 'bank') {
+                    $cashAcct = self::BANK_ACCOUNT;
+                }
+            }
+
+            self::createEntry($companyId, "Advance Booking — {$reference}", $reference, $date, [
+                ['account_code' => $cashAcct, 'debit' => $paidAmount, 'credit' => 0,           'note' => 'Advance deposit received'],
+                ['account_code' => '23002',   'debit' => 0,           'credit' => $paidAmount, 'note' => 'Customer advance liability'],
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('AccountingService::onAdvanceBookingCreated — ' . $e->getMessage());
+        }
+    }
+
+    // ─── RECEIVE PAYMENT ON DUE SALE ─────────────────────────────────────
+    // DR: Cash/Bank (payment received)
+    // CR: Accounts Receivable (AR cleared)
+    public static function onPaymentReceived(Payment $payment, Order $order): void
+    {
+        try {
+            $companyId = $order->company_id ?? 1;
+            $amount    = round((float)$payment->amount, 2);
+            if ($amount <= 0) return;
+
+            $date      = $payment->date ? date('Y-m-d', strtotime($payment->date)) : now()->toDateString();
+            $reference = $payment->payment_number ?? ('RCP-' . $order->invoice_number);
+            $cashAcct  = self::getPaymentAccount($payment);
+
+            self::createEntry($companyId, "Payment Received — {$reference} (Invoice: {$order->invoice_number})", $reference, $date, [
+                ['account_code' => $cashAcct,                    'debit' => $amount, 'credit' => 0,      'note' => 'Cash/Bank received'],
+                ['account_code' => self::ACCOUNTS_RECEIVABLE,    'debit' => 0,       'credit' => $amount, 'note' => 'AR cleared'],
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('AccountingService::onPaymentReceived — ' . $e->getMessage());
         }
     }
 
@@ -473,8 +544,13 @@ class AccountingService
     }
 
     // ─── DISPATCH based on order_type ─────────────────────────────────────
-    public static function handleOrder(Order $order): void
+    public static function handleOrder(Order $order, string $saleMode = 'full'): void
     {
+        if ($order->order_type === 'sales' && $saleMode === 'advance') {
+            self::onAdvanceBookingCreated($order);
+            return;
+        }
+
         match ($order->order_type) {
             'sales'            => self::onSaleCreated($order),
             'purchases', 'grn' => self::onPurchaseCreated($order),
