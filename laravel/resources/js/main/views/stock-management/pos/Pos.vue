@@ -1240,6 +1240,8 @@
         :data="formData"
         :selectedProducts="selectedProducts"
         :sellingWarehouseXid="selectedPosWarehouseXid"
+        :quickAddPhone="quickAddPhone"
+        :quickAddName="quickAddName"
     />
 
     <InvoiceModal

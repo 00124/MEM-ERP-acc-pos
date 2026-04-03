@@ -223,33 +223,49 @@
                         </a-button>
                     </a-col>
                     <a-col :xs="24" :sm="12">
-                        <a-tooltip title="Full amount goes to customer ledger as DUE. Generates CREDIT INVOICE.">
+                        <a-tooltip :title="hasCustomer
+                            ? 'Full amount goes to customer ledger as DUE. Generates CREDIT INVOICE.'
+                            : '⚠ Customer phone/name required for Credit Sale'">
                             <a-button
                                 :loading="loading"
+                                :disabled="!hasCustomer"
                                 block
-                                style="border-color: #d48806; color: #d48806; font-weight: 600;"
+                                :style="hasCustomer
+                                    ? 'border-color: #d48806; color: #d48806; font-weight: 600;'
+                                    : 'border-color: #d9d9d9; color: #bfbfbf; font-weight: 600; cursor: not-allowed;'"
                                 @click="() => completeOrder('credit')"
                             >
                                 Credit Sale
                             </a-button>
                         </a-tooltip>
-                        <div style="font-size: 10px; color: #888; margin-top: 2px; text-align: center;">
+                        <div v-if="!hasCustomer" style="font-size: 10px; color: #cf1322; margin-top: 2px; text-align: center; font-weight: 500;">
+                            ⚠ Requires customer name &amp; phone
+                        </div>
+                        <div v-else style="font-size: 10px; color: #888; margin-top: 2px; text-align: center;">
                             Full amount on credit — generates Credit Invoice
                         </div>
                     </a-col>
                     <a-col :xs="24" :sm="12">
-                        <a-tooltip title="Advance deposit collected. Order stays pending. Generates ADVANCE RECEIPT.">
+                        <a-tooltip :title="hasCustomer
+                            ? 'Advance deposit collected. Order stays pending. Generates ADVANCE RECEIPT.'
+                            : '⚠ Customer phone/name required for Advance Booking'">
                             <a-button
                                 :loading="loading"
+                                :disabled="!hasCustomer"
                                 block
                                 type="dashed"
-                                style="border-color: #722ed1; color: #722ed1; font-weight: 600;"
+                                :style="hasCustomer
+                                    ? 'border-color: #722ed1; color: #722ed1; font-weight: 600;'
+                                    : 'border-color: #d9d9d9; color: #bfbfbf; font-weight: 600; cursor: not-allowed;'"
                                 @click="() => completeOrder('advance')"
                             >
                                 Advance Booking
                             </a-button>
                         </a-tooltip>
-                        <div style="font-size: 10px; color: #888; margin-top: 2px; text-align: center;">
+                        <div v-if="!hasCustomer" style="font-size: 10px; color: #cf1322; margin-top: 2px; text-align: center; font-weight: 500;">
+                            ⚠ Requires customer name &amp; phone
+                        </div>
+                        <div v-else style="font-size: 10px; color: #888; margin-top: 2px; text-align: center;">
                             Collect deposit above — generates Advance Receipt
                         </div>
                     </a-col>
@@ -269,11 +285,12 @@ import {
 } from "@ant-design/icons-vue";
 import { useI18n } from "vue-i18n";
 import { find, filter, sumBy } from "lodash-es";
+import { notification } from "ant-design-vue";
 import common from "../../../../common/composable/common";
 import apiAdmin from "../../../../common/composable/apiAdmin";
 
 export default {
-    props: ["visible", "data", "selectedProducts", "sellingWarehouseXid"],
+    props: ["visible", "data", "selectedProducts", "sellingWarehouseXid", "quickAddPhone", "quickAddName"],
     emits: ["closed", "success"],
     components: {
         CheckOutlined,
@@ -360,7 +377,24 @@ export default {
             showSplitForm.value = false;
         };
 
+        // True when the order has a customer (existing or quick-add via phone/name)
+        const hasCustomer = computed(() => {
+            const hasUserId = !!(props.data && props.data.user_id);
+            const hasPhone  = !!(props.quickAddPhone && String(props.quickAddPhone).trim().length >= 3);
+            return hasUserId || hasPhone;
+        });
+
         const completeOrder = (saleMode = "full") => {
+            // Credit and Advance require a customer name + phone
+            if ((saleMode === "credit" || saleMode === "advance") && !hasCustomer.value) {
+                notification.error({
+                    message: "Customer Required",
+                    description: "Please enter Customer Phone Number and Name before creating a Credit Sale or Advance Booking.",
+                    duration: 5,
+                });
+                return;
+            }
+
             // Combine split records + the current quick-pay form entry
             // For 'full' and 'advance' modes include the entered payment amount;
             // for 'credit' no payment is collected upfront.
@@ -434,6 +468,7 @@ export default {
             getPaymentModeName,
             deletePayment,
             totalEnteredAmount,
+            hasCustomer,
             drawerWidth: window.innerWidth <= 991 ? "90%" : "55%",
         };
     },
