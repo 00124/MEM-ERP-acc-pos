@@ -31,7 +31,7 @@
             class="mt-5"
             style="margin: 10px 16px 0"
         >
-            <a-col :xs="24" :sm="24" :md="10" :lg="10" :xl="10">
+            <a-col :xs="24" :sm="24" :md="15" :lg="15" :xl="15">
                 <div class="pos-left-wrapper">
                     <div class="pos-left-header">
                         <a-card
@@ -49,10 +49,14 @@
                                     >
                                         <!-- Customer Quick Add -->
                                         <div>
-                                            <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                                            <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1d3557; letter-spacing: 0.3px;">
+                                                Customer
+                                            </div>
+                                            <div style="display: flex; gap: 8px; margin-bottom: 6px;">
                                                 <a-input
                                                     v-model:value="quickAddPhone"
                                                     placeholder="Phone Number"
+                                                    size="large"
                                                     style="width: 50%;"
                                                     allow-clear
                                                     @change="searchCustomerByPhone"
@@ -60,6 +64,7 @@
                                                 <a-input
                                                     v-model:value="quickAddName"
                                                     placeholder="Customer Name"
+                                                    size="large"
                                                     style="width: 50%;"
                                                 />
                                             </div>
@@ -88,7 +93,7 @@
                                         </div>
                                     </a-col>
                                 </a-row>
-                                <a-row class="mt-20 mb-30">
+                                <a-row class="mt-10 mb-10">
                                     <a-col
                                         :xs="24"
                                         :sm="24"
@@ -96,11 +101,15 @@
                                         :lg="24"
                                         :xl="24"
                                     >
+                                        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1d3557; letter-spacing: 0.3px;">
+                                            Product Search / Scan
+                                        </div>
                                         <span style="display: flex">
                                             <a-select
                                                 :value="null"
                                                 :searchValue="orderSearchTerm"
                                                 show-search
+                                                size="large"
                                                 :filter-option="false"
                                                 :placeholder="
                                                     $t(
@@ -175,7 +184,8 @@
                                                 :dataSource="selectedProducts"
                                                 :columns="orderItemColumns"
                                                 :pagination="false"
-                                                size="middle"
+                                                size="small"
+                                                :scroll="{ x: 480 }"
                                             >
                                                 <template
                                                     #bodyCell="{
@@ -516,7 +526,8 @@
                                     <a-space>
                                         <a-button
                                             @click="viewQuote"
-                                            type="primary"
+                                            type="default"
+                                            size="large"
                                             :disabled="
                                                 formData.subtotal <= 0 ||
                                                 (!formData.user_id && quickAddPhone.length < 3)
@@ -526,6 +537,8 @@
                                         </a-button>
                                         <a-button
                                             type="primary"
+                                            size="large"
+                                            style="font-weight: 600; min-width: 110px;"
                                             @click="payNow"
                                             :disabled="
                                                 formData.subtotal <= 0 ||
@@ -534,7 +547,10 @@
                                         >
                                             {{ $t("stock.pay_now") }}
                                         </a-button>
-                                        <a-button @click="resetPos">
+                                        <a-button
+                                            size="large"
+                                            @click="resetPos"
+                                        >
                                             {{ $t("stock.reset") }}
                                         </a-button>
                                     </a-space>
@@ -548,9 +564,9 @@
                 class="right-pos-sidebar"
                 :xs="24"
                 :sm="24"
-                :md="14"
-                :lg="14"
-                :xl="14"
+                :md="9"
+                :lg="9"
+                :xl="9"
             >
                 <perfect-scrollbar
                     :options="{
@@ -575,14 +591,15 @@
                         @changed="reFetchProducts"
                     />
 
-                    <a-row v-if="productLists.length > 0" :gutter="30">
+                    <a-row v-if="productLists.length > 0" :gutter="[12, 12]">
                         <a-col
                             v-for="item in productLists"
                             :key="item.xid"
-                            :xxl="6"
-                            :lg="6"
+                            :xxl="8"
+                            :xl="8"
+                            :lg="8"
                             :md="12"
-                            :xs="24"
+                            :xs="12"
                             @click="showStockPopup(item)"
                         >
                             <ProductCardNew
@@ -723,7 +740,8 @@
                                     :dataSource="selectedProducts"
                                     :columns="orderItemColumns"
                                     :pagination="false"
-                                    size="middle"
+                                    size="small"
+                                    :scroll="{ x: 400 }"
                                 >
                                     <template #bodyCell="{ column, record }">
                                         <template
@@ -1405,7 +1423,7 @@ export default {
         const printInvoiceOrder = ref({});
 
         // For mobile Design
-        const showMobileCart = ref(false);
+        const showMobileCart = ref(true);
 
         // Reactive innerWidth (updates on window resize)
         const innerWidth = ref(window.innerWidth);
