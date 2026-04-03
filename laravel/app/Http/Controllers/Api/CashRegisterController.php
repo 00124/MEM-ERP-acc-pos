@@ -12,27 +12,70 @@ use Illuminate\Support\Facades\DB;
 class CashRegisterController extends ApiBaseController
 {
     /**
-     * Payments received by mode during a register session.
-     * Returns [{ name, total }] ordered by total desc.
+     * Payment breakdown matrix grouped by (payment_mode × invoice_type).
+     *
+     * Returns:
+     *   rows           – array of { name, normal, credit, advance, total }
+     *   column_totals  – { normal, credit, advance, grand }
      */
     private function paymentBreakdown(CashRegister $register): array
     {
         $closeAt = $register->closed_at ?? now();
 
-        return DB::table('payments')
-            ->join('payment_modes', 'payments.payment_mode_id', '=', 'payment_modes.id')
-            ->where('payments.warehouse_id', $register->warehouse_id)
-            ->where('payments.payment_type', 'in')
-            ->whereBetween('payments.created_at', [$register->opened_at, $closeAt])
-            ->groupBy('payment_modes.id', 'payment_modes.name')
-            ->select('payment_modes.name', DB::raw('SUM(payments.paid_amount) as total'))
-            ->orderByDesc('total')
-            ->get()
-            ->toArray();
+        // Join payments → payment_modes, then LEFT JOIN order_payments → orders
+        // to get invoice_type per payment record.
+        // Only 'in' payments (cash received); only completed (non-cancelled) orders or
+        // payments not linked to any order (standalone payments treated as 'normal').
+        $raw = DB::table('payments as p')
+            ->join('payment_modes as pm', 'p.payment_mode_id', '=', 'pm.id')
+            ->leftJoin('order_payments as op', 'op.payment_id', '=', 'p.id')
+            ->leftJoin('orders as o', function ($join) {
+                $join->on('op.order_id', '=', 'o.id')
+                     ->where('o.order_status', '!=', 'cancelled');
+            })
+            ->where('p.warehouse_id', $register->warehouse_id)
+            ->where('p.payment_type', 'in')
+            ->whereBetween('p.created_at', [$register->opened_at, $closeAt])
+            ->groupBy('pm.id', 'pm.name', DB::raw("COALESCE(o.invoice_type, 'normal')"))
+            ->select(
+                'pm.name as payment_method',
+                DB::raw("COALESCE(o.invoice_type, 'normal') as invoice_type"),
+                DB::raw('SUM(p.paid_amount) as total')
+            )
+            ->get();
+
+        // Build matrix: { method_name → { normal, credit, advance, total } }
+        $methods = [];
+        $colTotals = ['normal' => 0.0, 'credit' => 0.0, 'advance' => 0.0, 'grand' => 0.0];
+
+        foreach ($raw as $row) {
+            $method = $row->payment_method;
+            $type   = $row->invoice_type ?? 'normal';
+            $amount = (float) $row->total;
+
+            if (!isset($methods[$method])) {
+                $methods[$method] = ['name' => $method, 'normal' => 0.0, 'credit' => 0.0, 'advance' => 0.0, 'total' => 0.0];
+            }
+
+            $methods[$method][$type]   = ($methods[$method][$type] ?? 0.0) + $amount;
+            $methods[$method]['total'] += $amount;
+
+            $colTotals[$type]   = ($colTotals[$type] ?? 0.0) + $amount;
+            $colTotals['grand'] += $amount;
+        }
+
+        // Sort by total desc
+        $rows = array_values($methods);
+        usort($rows, fn($a, $b) => $b['total'] <=> $a['total']);
+
+        return [
+            'rows'          => $rows,
+            'column_totals' => $colTotals,
+        ];
     }
 
     /**
-     * Expenses by category during a register session.
+     * Expenses grouped by category during the register session.
      */
     private function expenseBreakdown(CashRegister $register): array
     {
@@ -52,9 +95,8 @@ class CashRegisterController extends ApiBaseController
             ->toArray();
     }
 
-    /**
-     * Get the current open register for the logged-in user.
-     */
+    // ─────────────────────────────────────────────────────────────────────────
+
     public function status()
     {
         $loggedInUser = user();
@@ -64,7 +106,7 @@ class CashRegisterController extends ApiBaseController
             ->latest('opened_at')
             ->first();
 
-        $paymentBreakdown = [];
+        $paymentBreakdown = ['rows' => [], 'column_totals' => ['normal' => 0, 'credit' => 0, 'advance' => 0, 'grand' => 0]];
         $expenseBreakdown = [];
         $expectedClosing  = 0;
 
@@ -84,23 +126,17 @@ class CashRegisterController extends ApiBaseController
         ]);
     }
 
-    /**
-     * Open a new cash register for today.
-     */
     public function open(Request $request)
     {
         $loggedInUser = user();
         $warehouseObj = warehouse();
 
-        // Enforce one open register per user
         $existing = CashRegister::where('user_id', $loggedInUser->id)
             ->where('status', 'open')
             ->first();
 
         if ($existing) {
-            return ApiResponse::make('Register already open', [
-                'register' => $existing,
-            ]);
+            return ApiResponse::make('Register already open', ['register' => $existing]);
         }
 
         $register = new CashRegister();
@@ -116,14 +152,9 @@ class CashRegisterController extends ApiBaseController
         $register->notes           = $request->input('notes', null);
         $register->save();
 
-        return ApiResponse::make('Cash Register Opened', [
-            'register' => $register,
-        ]);
+        return ApiResponse::make('Cash Register Opened', ['register' => $register]);
     }
 
-    /**
-     * Close the current open register.
-     */
     public function close(Request $request)
     {
         $loggedInUser = user();
@@ -145,7 +176,7 @@ class CashRegisterController extends ApiBaseController
 
         $difference = $actualCash - $expectedClosing;
 
-        // Capture breakdowns before closing (so timestamps still in range)
+        // Capture breakdowns before updating closed_at
         $paymentBreakdown = $this->paymentBreakdown($register);
         $expenseBreakdown = $this->expenseBreakdown($register);
 
@@ -166,9 +197,6 @@ class CashRegisterController extends ApiBaseController
         ]);
     }
 
-    /**
-     * Daily cash report — full summary of the current (or last) register.
-     */
     public function report()
     {
         $loggedInUser = user();
@@ -177,10 +205,12 @@ class CashRegisterController extends ApiBaseController
             ->latest('opened_at')
             ->first();
 
+        $empty = ['rows' => [], 'column_totals' => ['normal' => 0, 'credit' => 0, 'advance' => 0, 'grand' => 0]];
+
         if (!$register) {
             return ApiResponse::make('No register found', [
                 'register'          => null,
-                'payment_breakdown' => [],
+                'payment_breakdown' => $empty,
                 'expense_breakdown' => [],
                 'expected_closing'  => 0,
                 'difference'        => null,
@@ -195,21 +225,15 @@ class CashRegisterController extends ApiBaseController
             ? $register->actual_cash - $expectedClosing
             : null;
 
-        $paymentBreakdown = $this->paymentBreakdown($register);
-        $expenseBreakdown = $this->expenseBreakdown($register);
-
         return ApiResponse::make('Cash Register Report', [
             'register'          => $register,
-            'payment_breakdown' => $paymentBreakdown,
-            'expense_breakdown' => $expenseBreakdown,
+            'payment_breakdown' => $this->paymentBreakdown($register),
+            'expense_breakdown' => $this->expenseBreakdown($register),
             'expected_closing'  => $expectedClosing,
             'difference'        => $difference,
         ]);
     }
 
-    /**
-     * List all registers (history) for the logged-in user.
-     */
     public function history()
     {
         $loggedInUser = user();
@@ -219,8 +243,6 @@ class CashRegisterController extends ApiBaseController
             ->take(30)
             ->get();
 
-        return ApiResponse::make('Cash Register History', [
-            'registers' => $registers,
-        ]);
+        return ApiResponse::make('Cash Register History', ['registers' => $registers]);
     }
 }
