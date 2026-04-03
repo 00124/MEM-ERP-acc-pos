@@ -47,6 +47,10 @@ const fields = () => {
             dataIndex: "unit_quantity",
         },
         {
+            title: t("product.unit_price"),
+            dataIndex: "unit_price",
+        },
+        {
             title: t("product.subtotal"),
             dataIndex: "subtotal",
         },

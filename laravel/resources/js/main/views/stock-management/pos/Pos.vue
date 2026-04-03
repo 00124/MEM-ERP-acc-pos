@@ -242,6 +242,21 @@
                                                     <template
                                                         v-if="
                                                             column.dataIndex ===
+                                                            'unit_price'
+                                                        "
+                                                    >
+                                                        <a-input-number
+                                                            v-model:value="record.unit_price"
+                                                            :min="0"
+                                                            :step="1"
+                                                            :precision="2"
+                                                            style="width: 90px;"
+                                                            @change="quantityChanged(record)"
+                                                        />
+                                                    </template>
+                                                    <template
+                                                        v-if="
+                                                            column.dataIndex ===
                                                             'warehouse_name'
                                                         "
                                                     >
@@ -823,6 +838,18 @@
                                                 @change="
                                                     quantityChanged(record)
                                                 "
+                                            />
+                                        </template>
+                                        <template
+                                            v-if="column.dataIndex === 'unit_price'"
+                                        >
+                                            <a-input-number
+                                                v-model:value="record.unit_price"
+                                                :min="0"
+                                                :step="1"
+                                                :precision="2"
+                                                style="width: 90px;"
+                                                @change="quantityChanged(record)"
                                             />
                                         </template>
                                         <template
