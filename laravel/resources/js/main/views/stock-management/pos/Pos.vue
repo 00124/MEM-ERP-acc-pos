@@ -31,7 +31,7 @@
             class="mt-5"
             style="margin: 10px 16px 0"
         >
-            <a-col :xs="24" :sm="24" :md="15" :lg="15" :xl="15">
+            <a-col :xs="24" :sm="24" :md="14" :lg="14" :xl="14">
                 <div class="pos-left-wrapper">
                     <div class="pos-left-header">
                         <a-card
@@ -564,9 +564,9 @@
                 class="right-pos-sidebar"
                 :xs="24"
                 :sm="24"
-                :md="9"
-                :lg="9"
-                :xl="9"
+                :md="10"
+                :lg="10"
+                :xl="10"
             >
                 <perfect-scrollbar
                     :options="{
@@ -625,12 +625,60 @@
         </a-row>
 
         <a-row v-else :gutter="[8, 8]" class="mt-5" style="margin: 10px 16px 0">
+            <!-- Mobile Customer Section -->
+            <a-col :span="24" style="margin-bottom: 8px;">
+                <a-card size="small" :bodyStyle="{ padding: '10px' }">
+                    <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #1d3557;">
+                        Customer
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+                        <a-input
+                            v-model:value="quickAddPhone"
+                            placeholder="Phone Number"
+                            size="large"
+                            style="width: 50%;"
+                            allow-clear
+                            @change="searchCustomerByPhone"
+                        />
+                        <a-input
+                            v-model:value="quickAddName"
+                            placeholder="Customer Name"
+                            size="large"
+                            style="width: 50%;"
+                        />
+                    </div>
+                    <a-alert
+                        v-if="selectedCustomerInfo"
+                        type="success"
+                        show-icon
+                        closable
+                        @close="clearSelectedCustomer"
+                        style="margin-top: 4px; padding: 4px 8px; font-size: 12px;"
+                    >
+                        <template #message>
+                            <strong>{{ selectedCustomerInfo.name }}</strong>
+                            <span v-if="selectedCustomerInfo.phone" style="margin-left: 8px; color: #555;">
+                                {{ selectedCustomerInfo.phone }}
+                            </span>
+                        </template>
+                    </a-alert>
+                    <a-alert
+                        v-else-if="phoneSearchDone && quickAddPhone.length >= 3"
+                        type="info"
+                        message="New customer — will be created automatically on checkout."
+                        show-icon
+                        style="margin-top: 4px; padding: 4px 8px; font-size: 12px;"
+                    />
+                </a-card>
+            </a-col>
+            <!-- Mobile Product Search -->
             <a-col :span="24">
                 <span style="display: flex">
                     <a-select
                         :value="null"
                         :searchValue="orderSearchTerm"
                         show-search
+                        size="large"
                         :filter-option="false"
                         :placeholder="$t('product.search_scan_product')"
                         style="width: 90%"
