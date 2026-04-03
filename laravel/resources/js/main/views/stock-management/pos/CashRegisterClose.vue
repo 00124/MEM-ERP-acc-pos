@@ -31,6 +31,7 @@
                         <div>
                             <div class="crc-meta-label">Branch</div>
                             <div class="crc-meta-val">{{ warehouse?.name || '—' }}</div>
+                            <div v-if="warehouse?.address" style="font-size:9px; color:#bbb;">{{ warehouse.address }}</div>
                         </div>
                     </div>
                     <div class="crc-meta-sep"></div>

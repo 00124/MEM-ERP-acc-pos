@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\CashRegister;
+use App\Models\Warehouse;
 use App\Http\Controllers\ApiBaseController;
 use Examyou\RestAPI\ApiResponse;
 use Examyou\RestAPI\Exceptions\ApiException;
@@ -12,20 +13,42 @@ use Illuminate\Support\Facades\DB;
 class CashRegisterController extends ApiBaseController
 {
     /**
-     * Payment breakdown matrix grouped by (payment_mode × invoice_type).
-     *
-     * Returns:
-     *   rows           – array of { name, normal, credit, advance, total }
-     *   column_totals  – { normal, credit, advance, grand }
+     * Resolve the branch (warehouse) that belongs to the logged-in user.
+     * Always uses user.warehouse_id — never the request header — so that
+     * each user is locked to their assigned branch.
      */
+    private function userBranchWarehouse(): ?Warehouse
+    {
+        $loggedInUser = user();
+
+        if (!$loggedInUser || !$loggedInUser->warehouse_id) {
+            return null;
+        }
+
+        return Warehouse::find($loggedInUser->warehouse_id);
+    }
+
+    /**
+     * Safe warehouse payload for API responses.
+     */
+    private function warehouseInfo(?Warehouse $wh): array
+    {
+        if (!$wh) return ['id' => null, 'name' => 'Unknown Branch', 'address' => '', 'phone' => '', 'email' => ''];
+        return [
+            'id'       => $wh->id,
+            'name'     => $wh->name,
+            'address'  => $wh->address ?? '',
+            'phone'    => $wh->phone   ?? '',
+            'email'    => $wh->email   ?? '',
+        ];
+    }
+
+    // ── Payment breakdown matrix: payment_mode × invoice_type ────────────────
+
     private function paymentBreakdown(CashRegister $register): array
     {
         $closeAt = $register->closed_at ?? now();
 
-        // Join payments → payment_modes, then LEFT JOIN order_payments → orders
-        // to get invoice_type per payment record.
-        // Only 'in' payments (cash received); only completed (non-cancelled) orders or
-        // payments not linked to any order (standalone payments treated as 'normal').
         $raw = DB::table('payments as p')
             ->join('payment_modes as pm', 'p.payment_mode_id', '=', 'pm.id')
             ->leftJoin('order_payments as op', 'op.payment_id', '=', 'p.id')
@@ -44,8 +67,7 @@ class CashRegisterController extends ApiBaseController
             )
             ->get();
 
-        // Build matrix: { method_name → { normal, credit, advance, total } }
-        $methods = [];
+        $methods   = [];
         $colTotals = ['normal' => 0.0, 'credit' => 0.0, 'advance' => 0.0, 'grand' => 0.0];
 
         foreach ($raw as $row) {
@@ -59,24 +81,18 @@ class CashRegisterController extends ApiBaseController
 
             $methods[$method][$type]   = ($methods[$method][$type] ?? 0.0) + $amount;
             $methods[$method]['total'] += $amount;
-
-            $colTotals[$type]   = ($colTotals[$type] ?? 0.0) + $amount;
-            $colTotals['grand'] += $amount;
+            $colTotals[$type]          = ($colTotals[$type] ?? 0.0) + $amount;
+            $colTotals['grand']       += $amount;
         }
 
-        // Sort by total desc
         $rows = array_values($methods);
         usort($rows, fn($a, $b) => $b['total'] <=> $a['total']);
 
-        return [
-            'rows'          => $rows,
-            'column_totals' => $colTotals,
-        ];
+        return ['rows' => $rows, 'column_totals' => $colTotals];
     }
 
-    /**
-     * Expenses grouped by category during the register session.
-     */
+    // ── Expense breakdown by category ────────────────────────────────────────
+
     private function expenseBreakdown(CashRegister $register): array
     {
         $closeAt = $register->closed_at ?? now();
@@ -95,18 +111,28 @@ class CashRegisterController extends ApiBaseController
             ->toArray();
     }
 
+    // ── Find open register scoped to user's own branch ───────────────────────
+
+    private function findOpenRegister(): ?CashRegister
+    {
+        $loggedInUser = user();
+
+        return CashRegister::where('user_id', $loggedInUser->id)
+            ->where('warehouse_id', $loggedInUser->warehouse_id)
+            ->where('status', 'open')
+            ->latest('opened_at')
+            ->first();
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
 
     public function status()
     {
-        $loggedInUser = user();
+        $register  = $this->findOpenRegister();
+        $warehouse = $this->userBranchWarehouse();
 
-        $register = CashRegister::where('user_id', $loggedInUser->id)
-            ->where('status', 'open')
-            ->latest('opened_at')
-            ->first();
-
-        $paymentBreakdown = ['rows' => [], 'column_totals' => ['normal' => 0, 'credit' => 0, 'advance' => 0, 'grand' => 0]];
+        $empty = ['rows' => [], 'column_totals' => ['normal' => 0, 'credit' => 0, 'advance' => 0, 'grand' => 0]];
+        $paymentBreakdown = $empty;
         $expenseBreakdown = [];
         $expectedClosing  = 0;
 
@@ -120,6 +146,7 @@ class CashRegisterController extends ApiBaseController
 
         return ApiResponse::make('Cash Register Status', [
             'register'          => $register,
+            'warehouse'         => $this->warehouseInfo($warehouse),
             'payment_breakdown' => $paymentBreakdown,
             'expense_breakdown' => $expenseBreakdown,
             'expected_closing'  => $expectedClosing,
@@ -129,20 +156,31 @@ class CashRegisterController extends ApiBaseController
     public function open(Request $request)
     {
         $loggedInUser = user();
-        $warehouseObj = warehouse();
 
+        // Always lock to the user's own assigned branch — never trust request headers
+        $warehouse = $this->userBranchWarehouse();
+
+        if (!$warehouse) {
+            throw new ApiException('Your account is not assigned to any branch. Please contact the administrator.');
+        }
+
+        // One open register per user per branch
         $existing = CashRegister::where('user_id', $loggedInUser->id)
+            ->where('warehouse_id', $warehouse->id)
             ->where('status', 'open')
             ->first();
 
         if ($existing) {
-            return ApiResponse::make('Register already open', ['register' => $existing]);
+            return ApiResponse::make('Register already open', [
+                'register'  => $existing,
+                'warehouse' => $this->warehouseInfo($warehouse),
+            ]);
         }
 
         $register = new CashRegister();
         $register->company_id      = $loggedInUser->company_id ?? 1;
         $register->user_id         = $loggedInUser->id;
-        $register->warehouse_id    = $warehouseObj ? $warehouseObj->id : null;
+        $register->warehouse_id    = $warehouse->id;           // user's branch — enforced here
         $register->opening_balance = (float) $request->input('opening_balance', 0);
         $register->total_sales     = 0;
         $register->total_received  = 0;
@@ -152,20 +190,18 @@ class CashRegisterController extends ApiBaseController
         $register->notes           = $request->input('notes', null);
         $register->save();
 
-        return ApiResponse::make('Cash Register Opened', ['register' => $register]);
+        return ApiResponse::make('Cash Register Opened', [
+            'register'  => $register,
+            'warehouse' => $this->warehouseInfo($warehouse),
+        ]);
     }
 
     public function close(Request $request)
     {
-        $loggedInUser = user();
-
-        $register = CashRegister::where('user_id', $loggedInUser->id)
-            ->where('status', 'open')
-            ->latest('opened_at')
-            ->first();
+        $register = $this->findOpenRegister();
 
         if (!$register) {
-            throw new ApiException('No open cash register found.');
+            throw new ApiException('No open cash register found for your branch.');
         }
 
         $actualCash = (float) $request->input('actual_cash', 0);
@@ -176,7 +212,6 @@ class CashRegisterController extends ApiBaseController
 
         $difference = $actualCash - $expectedClosing;
 
-        // Capture breakdowns before updating closed_at
         $paymentBreakdown = $this->paymentBreakdown($register);
         $expenseBreakdown = $this->expenseBreakdown($register);
 
@@ -189,6 +224,7 @@ class CashRegisterController extends ApiBaseController
 
         return ApiResponse::make('Cash Register Closed', [
             'register'          => $register,
+            'warehouse'         => $this->warehouseInfo($this->userBranchWarehouse()),
             'payment_breakdown' => $paymentBreakdown,
             'expense_breakdown' => $expenseBreakdown,
             'expected_closing'  => $expectedClosing,
@@ -200,8 +236,11 @@ class CashRegisterController extends ApiBaseController
     public function report()
     {
         $loggedInUser = user();
+        $warehouse    = $this->userBranchWarehouse();
 
+        // Latest register for this user's branch (open or closed)
         $register = CashRegister::where('user_id', $loggedInUser->id)
+            ->where('warehouse_id', $loggedInUser->warehouse_id)
             ->latest('opened_at')
             ->first();
 
@@ -210,6 +249,7 @@ class CashRegisterController extends ApiBaseController
         if (!$register) {
             return ApiResponse::make('No register found', [
                 'register'          => null,
+                'warehouse'         => $this->warehouseInfo($warehouse),
                 'payment_breakdown' => $empty,
                 'expense_breakdown' => [],
                 'expected_closing'  => 0,
@@ -217,7 +257,7 @@ class CashRegisterController extends ApiBaseController
             ]);
         }
 
-        $expectedClosing  = $register->opening_balance
+        $expectedClosing = $register->opening_balance
             + $register->total_received
             - $register->total_expense;
 
@@ -227,6 +267,7 @@ class CashRegisterController extends ApiBaseController
 
         return ApiResponse::make('Cash Register Report', [
             'register'          => $register,
+            'warehouse'         => $this->warehouseInfo($warehouse),
             'payment_breakdown' => $this->paymentBreakdown($register),
             'expense_breakdown' => $this->expenseBreakdown($register),
             'expected_closing'  => $expectedClosing,
@@ -239,6 +280,7 @@ class CashRegisterController extends ApiBaseController
         $loggedInUser = user();
 
         $registers = CashRegister::where('user_id', $loggedInUser->id)
+            ->where('warehouse_id', $loggedInUser->warehouse_id)
             ->orderByDesc('opened_at')
             ->take(30)
             ->get();

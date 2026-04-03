@@ -35,6 +35,8 @@
                 <div>
                     <div class="cro-info-label">Branch</div>
                     <div class="cro-info-value">{{ warehouse?.name || '—' }}</div>
+                    <div v-if="warehouse?.address" style="font-size:10px; color:#888; margin-top:1px;">{{ warehouse.address }}</div>
+                    <div v-if="warehouse?.phone" style="font-size:10px; color:#888;">📞 {{ warehouse.phone }}</div>
                 </div>
             </div>
         </div>

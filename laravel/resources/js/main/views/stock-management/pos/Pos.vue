@@ -11,6 +11,14 @@
                     class="p-0"
                 >
                     <template #extra>
+                        <!-- Branch Name (read-only — locked to user's assigned branch) -->
+                        <a-tag
+                            color="blue"
+                            style="font-size: 12px; padding: 3px 12px; font-weight: 600; letter-spacing: 0.3px;"
+                        >
+                            🏬 {{ selectedWarehouse?.name || 'Branch' }}
+                        </a-tag>
+
                         <!-- Cash Register Status Badge -->
                         <a-tag
                             v-if="cashRegister"
@@ -25,7 +33,7 @@
                             style="font-size: 12px; padding: 3px 10px; cursor: pointer;"
                             @click="cashRegisterOpenVis = true"
                         >
-                            🔴 Register Closed
+                            🔴 Register Closed — Click to Open
                         </a-tag>
                         <a-button
                             v-if="cashRegister"

@@ -39,7 +39,7 @@
                                     <strong>Salesman:</strong> {{ order.staff_member.name }}
                                 </div>
                                 <div class="inv-bill-row" v-if="sellingWarehouseName">
-                                    <strong>Location:</strong> {{ sellingWarehouseName }}
+                                    <strong>Branch:</strong> {{ sellingWarehouseName }}
                                 </div>
                             </div>
                         </td>
@@ -65,7 +65,7 @@
                         <tr>
                             <th>Invoice Type</th>
                             <th>Invoice Number</th>
-                            <th>Location</th>
+                            <th>Branch</th>
                             <th>Date</th>
                         </tr>
                     </thead>

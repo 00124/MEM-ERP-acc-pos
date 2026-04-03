@@ -32,7 +32,7 @@
                         </tr>
                         <tr>
                             <td style="padding: 3px 0;"><strong>Invoice No:</strong> {{ order.invoice_number }}</td>
-                            <td style="padding: 3px 0;"><strong>POS Warehouse:</strong> {{ sellingWarehouseName || selectedWarehouse.name }}</td>
+                            <td style="padding: 3px 0;"><strong>Branch:</strong> {{ sellingWarehouseName || selectedWarehouse.name }}</td>
                         </tr>
                         <tr>
                             <td style="padding: 3px 0;" colspan="2"><strong>Customer:</strong> {{ order.user ? order.user.name : 'Walk-in Customer' }}</td>
@@ -54,7 +54,7 @@
                 >
                     <!-- Warehouse header -->
                     <div style="background: #1677ff; color: #fff; padding: 5px 10px; font-size: 13px; font-weight: bold;">
-                        Warehouse / Store: {{ group.warehouseName }}
+                        Branch / Store: {{ group.warehouseName }}
                         <span style="float: right; font-size: 11px; font-weight: normal;">Section {{ gIndex + 1 }} of {{ itemsByWarehouse.length }}</span>
                     </div>
                     <table style="width: 100%; border-collapse: collapse;">
