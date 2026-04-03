@@ -47,8 +47,13 @@
                 </table>
 
                 <!-- ══ INVOICE TITLE ════════════════════════════════════ -->
-                <div class="inv-title">
-                    {{ order.order_type === 'purchases' ? 'PURCHASE INVOICE'
+                <div class="inv-title" :class="{
+                    'inv-title-credit':  order.invoice_type === 'credit',
+                    'inv-title-advance': order.invoice_type === 'advance',
+                }">
+                    {{ order.invoice_type === 'credit'  ? 'CREDIT INVOICE'
+                     : order.invoice_type === 'advance' ? 'ADVANCE RECEIPT'
+                     : order.order_type === 'purchases' ? 'PURCHASE INVOICE'
                      : order.order_type === 'purchase-returns' ? 'PURCHASE RETURN'
                      : order.order_type === 'sales-returns' ? 'SALES RETURN'
                      : order.order_type === 'quotations' ? 'QUOTATION'
@@ -97,7 +102,99 @@
                 </table>
 
                 <!-- ══ PAYMENT + TOTALS ═════════════════════════════════ -->
-                <table class="inv-payment-section" v-if="order.order_type !== 'quotations'">
+
+                <!-- CREDIT INVOICE payment section -->
+                <table class="inv-payment-section" v-if="order.order_type !== 'quotations' && order.invoice_type === 'credit'">
+                    <tr>
+                        <td class="inv-pay-left">
+                            <table class="inv-pay-modes">
+                                <tr class="inv-credit-header-row">
+                                    <td colspan="2"><strong>⚠ CREDIT SALE — Payment Due</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Total Amount</td>
+                                    <td class="text-right">{{ formatAmountCurrency(order.total) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Paid Amount</td>
+                                    <td class="text-right">{{ formatAmountCurrency(order.paid_amount) }}</td>
+                                </tr>
+                                <tr class="inv-due-row-credit">
+                                    <td><strong>DUE AMOUNT</strong></td>
+                                    <td class="text-right"><strong>{{ formatAmountCurrency(order.due_amount) }}</strong></td>
+                                </tr>
+                            </table>
+                        </td>
+                        <td class="inv-pay-right">
+                            <table class="inv-totals-box">
+                                <tr>
+                                    <td>Qty</td>
+                                    <td class="text-right">{{ order.total_quantity }}</td>
+                                </tr>
+                                <tr v-if="order.discount > 0">
+                                    <td>Discount</td>
+                                    <td class="text-right">{{ formatAmountCurrency(order.discount) }}</td>
+                                </tr>
+                                <tr v-if="order.tax_amount > 0">
+                                    <td>Tax</td>
+                                    <td class="text-right">{{ formatAmountCurrency(order.tax_amount) }}</td>
+                                </tr>
+                                <tr class="inv-grand-row">
+                                    <td>TOTAL</td>
+                                    <td class="text-right">{{ formatAmountCurrency(order.total) }}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- ADVANCE RECEIPT payment section -->
+                <table class="inv-payment-section" v-else-if="order.order_type !== 'quotations' && order.invoice_type === 'advance'">
+                    <tr>
+                        <td class="inv-pay-left">
+                            <table class="inv-pay-modes">
+                                <tr class="inv-advance-header-row">
+                                    <td colspan="2"><strong>📋 ADVANCE BOOKING</strong></td>
+                                </tr>
+                                <tr v-for="pm in paymentBreakdown" :key="pm.label">
+                                    <td>Advance Paid ({{ pm.label }})</td>
+                                    <td class="text-right">{{ formatAmountCurrency(pm.amount) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Total Order Amount</td>
+                                    <td class="text-right">{{ formatAmountCurrency(order.total) }}</td>
+                                </tr>
+                                <tr class="inv-due-row-advance">
+                                    <td><strong>BALANCE REMAINING</strong></td>
+                                    <td class="text-right"><strong>{{ formatAmountCurrency(order.due_amount) }}</strong></td>
+                                </tr>
+                            </table>
+                        </td>
+                        <td class="inv-pay-right">
+                            <table class="inv-totals-box">
+                                <tr>
+                                    <td>Qty</td>
+                                    <td class="text-right">{{ order.total_quantity }}</td>
+                                </tr>
+                                <tr v-if="order.discount > 0">
+                                    <td>Discount</td>
+                                    <td class="text-right">{{ formatAmountCurrency(order.discount) }}</td>
+                                </tr>
+                                <tr v-if="order.tax_amount > 0">
+                                    <td>Tax</td>
+                                    <td class="text-right">{{ formatAmountCurrency(order.tax_amount) }}</td>
+                                </tr>
+                                <tr class="inv-grand-row">
+                                    <td>TOTAL</td>
+                                    <td class="text-right">{{ formatAmountCurrency(order.total) }}</td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- NORMAL INVOICE payment section -->
+                <table class="inv-payment-section" v-else-if="order.order_type !== 'quotations'">
                     <tr>
                         <td class="inv-pay-left">
                             <table class="inv-pay-modes">
@@ -149,7 +246,9 @@
                             <div>Printed: {{ printTime }}</div>
                         </td>
                         <td class="inv-footer-center">
-                            <div class="inv-delivered-stamp">DELIVERED</div>
+                            <div v-if="order.invoice_type === 'credit'" class="inv-credit-stamp">CREDIT SALE</div>
+                            <div v-else-if="order.invoice_type === 'advance'" class="inv-advance-stamp">ADVANCE</div>
+                            <div v-else class="inv-delivered-stamp">DELIVERED</div>
                         </td>
                         <td class="inv-footer-right">
                             <div>Page 1 of 1</div>
@@ -246,6 +345,14 @@ body{font-family:Arial,sans-serif;font-size:12px;color:#000;background:#fff;}
 .inv-footer-center{width:24%;text-align:center;}
 .inv-footer-right{width:38%;text-align:right;}
 .inv-delivered-stamp{display:inline-block;border:3px solid #000;border-radius:4px;padding:5px 12px;font-size:14px;font-weight:bold;letter-spacing:3px;color:#000;opacity:.2;transform:rotate(-10deg);margin-top:2px;}
+.inv-credit-stamp{display:inline-block;border:3px solid #cf1322;border-radius:4px;padding:5px 10px;font-size:13px;font-weight:bold;letter-spacing:2px;color:#cf1322;opacity:.7;transform:rotate(-10deg);margin-top:2px;}
+.inv-advance-stamp{display:inline-block;border:3px solid #722ed1;border-radius:4px;padding:5px 10px;font-size:13px;font-weight:bold;letter-spacing:2px;color:#722ed1;opacity:.7;transform:rotate(-10deg);margin-top:2px;}
+.inv-title-credit{color:#cf1322;}
+.inv-title-advance{color:#722ed1;}
+.inv-credit-header-row td{background:#fff1f0;color:#cf1322;font-size:11px;border:1px solid #ffa39e;padding:5px 8px;}
+.inv-advance-header-row td{background:#f9f0ff;color:#722ed1;font-size:11px;border:1px solid #d3adf7;padding:5px 8px;}
+.inv-due-row-credit td{background:#fff1f0;color:#cf1322;}
+.inv-due-row-advance td{background:#f9f0ff;color:#722ed1;}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 `;
 
@@ -273,6 +380,10 @@ export default defineComponent({
         });
 
         const invoiceTypeCode = computed(() => {
+            const invType = props.order?.invoice_type;
+            if (invType === 'credit')  return 'CREDIT';
+            if (invType === 'advance') return 'ADVANCE';
+            if (invType === 'normal')  return 'INVCR';
             const t = props.order?.order_type;
             if (t === 'sales') return 'INVCR';
             if (t === 'purchases') return 'PUR';
@@ -380,4 +491,12 @@ export default defineComponent({
 .inv-footer-center { width: 24%; text-align: center; }
 .inv-footer-right { width: 38%; text-align: right; }
 .inv-delivered-stamp { display: inline-block; border: 3px solid #000; border-radius: 4px; padding: 5px 12px; font-size: 14px; font-weight: bold; letter-spacing: 3px; color: #000; opacity: 0.2; transform: rotate(-10deg); margin-top: 2px; }
+.inv-credit-stamp { display: inline-block; border: 3px solid #cf1322; border-radius: 4px; padding: 5px 10px; font-size: 13px; font-weight: bold; letter-spacing: 2px; color: #cf1322; opacity: 0.7; transform: rotate(-10deg); margin-top: 2px; }
+.inv-advance-stamp { display: inline-block; border: 3px solid #722ed1; border-radius: 4px; padding: 5px 10px; font-size: 13px; font-weight: bold; letter-spacing: 2px; color: #722ed1; opacity: 0.7; transform: rotate(-10deg); margin-top: 2px; }
+.inv-title-credit { color: #cf1322; }
+.inv-title-advance { color: #722ed1; }
+.inv-credit-header-row td { background: #fff1f0; color: #cf1322; font-size: 11px; border: 1px solid #ffa39e; padding: 5px 8px; }
+.inv-advance-header-row td { background: #f9f0ff; color: #722ed1; font-size: 11px; border: 1px solid #d3adf7; padding: 5px 8px; }
+.inv-due-row-credit td { background: #fff1f0; color: #cf1322; }
+.inv-due-row-advance td { background: #f9f0ff; color: #722ed1; }
 </style>

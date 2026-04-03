@@ -223,25 +223,35 @@
                         </a-button>
                     </a-col>
                     <a-col :xs="24" :sm="12">
-                        <a-button
-                            :loading="loading"
-                            block
-                            style="border-color: #d48806; color: #d48806;"
-                            @click="() => completeOrder('credit')"
-                        >
-                            Credit Sale
-                        </a-button>
+                        <a-tooltip title="Full amount goes to customer ledger as DUE. Generates CREDIT INVOICE.">
+                            <a-button
+                                :loading="loading"
+                                block
+                                style="border-color: #d48806; color: #d48806; font-weight: 600;"
+                                @click="() => completeOrder('credit')"
+                            >
+                                Credit Sale
+                            </a-button>
+                        </a-tooltip>
+                        <div style="font-size: 10px; color: #888; margin-top: 2px; text-align: center;">
+                            Full amount on credit — generates Credit Invoice
+                        </div>
                     </a-col>
                     <a-col :xs="24" :sm="12">
-                        <a-button
-                            :loading="loading"
-                            block
-                            type="dashed"
-                            style="border-color: #722ed1; color: #722ed1;"
-                            @click="() => completeOrder('advance')"
-                        >
-                            Advance Booking
-                        </a-button>
+                        <a-tooltip title="Advance deposit collected. Order stays pending. Generates ADVANCE RECEIPT.">
+                            <a-button
+                                :loading="loading"
+                                block
+                                type="dashed"
+                                style="border-color: #722ed1; color: #722ed1; font-weight: 600;"
+                                @click="() => completeOrder('advance')"
+                            >
+                                Advance Booking
+                            </a-button>
+                        </a-tooltip>
+                        <div style="font-size: 10px; color: #888; margin-top: 2px; text-align: center;">
+                            Collect deposit above — generates Advance Receipt
+                        </div>
                     </a-col>
                 </a-row>
             </a-col>
@@ -352,9 +362,11 @@ export default {
 
         const completeOrder = (saleMode = "full") => {
             // Combine split records + the current quick-pay form entry
+            // For 'full' and 'advance' modes include the entered payment amount;
+            // for 'credit' no payment is collected upfront.
             let allPayments = [...allPaymentRecords.value];
             if (
-                saleMode === "full" &&
+                (saleMode === "full" || saleMode === "advance") &&
                 formData.value.amount > 0 &&
                 formData.value.payment_mode_id
             ) {

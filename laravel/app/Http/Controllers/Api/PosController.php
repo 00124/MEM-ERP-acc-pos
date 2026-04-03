@@ -223,7 +223,11 @@ class PosController extends ApiBaseController
         $saleMode = $request->input('sale_mode', 'full');
 
         $order->order_type = $request->order_type == 'quotations' ? 'quotations' : 'sales';
-        $order->invoice_type = "pos";
+        $order->invoice_type = match($saleMode) {
+            'credit'  => 'credit',
+            'advance' => 'advance',
+            default   => 'normal',
+        };
         $order->unique_id = Common::generateOrderUniqueId();
         $order->invoice_number = "";
         $order->order_date = Carbon::now();
@@ -311,7 +315,7 @@ class PosController extends ApiBaseController
         AccountingService::handleOrder($order, $saleMode);
         \Log::info('[POS] after handleOrder t=' . round(microtime(true)-$t0, 2));
 
-        $savedOrder = Order::select('id', 'unique_id', 'invoice_number', 'user_id', 'staff_user_id', 'order_date', 'discount', 'shipping', 'tax_amount', 'subtotal', 'total', 'paid_amount', 'due_amount', 'total_items', 'total_quantity', 'order_type')
+        $savedOrder = Order::select('id', 'unique_id', 'invoice_number', 'invoice_type', 'user_id', 'staff_user_id', 'order_date', 'discount', 'shipping', 'tax_amount', 'subtotal', 'total', 'paid_amount', 'due_amount', 'total_items', 'total_quantity', 'order_type')
             ->with(['user:id,name,email,phone', 'items:id,order_id,product_id,unit_id,unit_price,subtotal,quantity,mrp,total_tax,warehouse_id', 'items.product:id,name', 'items.unit:id,name,short_name', 'items.warehouse:id,name', 'orderPayments:id,order_id,payment_id,amount', 'orderPayments.payment:id,payment_mode_id', 'orderPayments.payment.paymentMode:id,name', 'staffMember:id,name'])
             ->find($order->id);
 
