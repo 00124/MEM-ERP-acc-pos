@@ -7,9 +7,51 @@ use App\Http\Controllers\ApiBaseController;
 use Examyou\RestAPI\ApiResponse;
 use Examyou\RestAPI\Exceptions\ApiException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CashRegisterController extends ApiBaseController
 {
+    /**
+     * Payments received by mode during a register session.
+     * Returns [{ name, total }] ordered by total desc.
+     */
+    private function paymentBreakdown(CashRegister $register): array
+    {
+        $closeAt = $register->closed_at ?? now();
+
+        return DB::table('payments')
+            ->join('payment_modes', 'payments.payment_mode_id', '=', 'payment_modes.id')
+            ->where('payments.warehouse_id', $register->warehouse_id)
+            ->where('payments.payment_type', 'in')
+            ->whereBetween('payments.created_at', [$register->opened_at, $closeAt])
+            ->groupBy('payment_modes.id', 'payment_modes.name')
+            ->select('payment_modes.name', DB::raw('SUM(payments.paid_amount) as total'))
+            ->orderByDesc('total')
+            ->get()
+            ->toArray();
+    }
+
+    /**
+     * Expenses by category during a register session.
+     */
+    private function expenseBreakdown(CashRegister $register): array
+    {
+        $closeAt = $register->closed_at ?? now();
+
+        return DB::table('expenses')
+            ->leftJoin('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+            ->where('expenses.warehouse_id', $register->warehouse_id)
+            ->whereBetween('expenses.created_at', [$register->opened_at, $closeAt])
+            ->groupBy('expense_categories.id', 'expense_categories.name')
+            ->select(
+                DB::raw("COALESCE(expense_categories.name, 'Uncategorized') as name"),
+                DB::raw('SUM(expenses.amount) as total')
+            )
+            ->orderByDesc('total')
+            ->get()
+            ->toArray();
+    }
+
     /**
      * Get the current open register for the logged-in user.
      */
@@ -22,8 +64,23 @@ class CashRegisterController extends ApiBaseController
             ->latest('opened_at')
             ->first();
 
+        $paymentBreakdown = [];
+        $expenseBreakdown = [];
+        $expectedClosing  = 0;
+
+        if ($register) {
+            $paymentBreakdown = $this->paymentBreakdown($register);
+            $expenseBreakdown = $this->expenseBreakdown($register);
+            $expectedClosing  = $register->opening_balance
+                + $register->total_received
+                - $register->total_expense;
+        }
+
         return ApiResponse::make('Cash Register Status', [
-            'register' => $register,
+            'register'          => $register,
+            'payment_breakdown' => $paymentBreakdown,
+            'expense_breakdown' => $expenseBreakdown,
+            'expected_closing'  => $expectedClosing,
         ]);
     }
 
@@ -88,23 +145,29 @@ class CashRegisterController extends ApiBaseController
 
         $difference = $actualCash - $expectedClosing;
 
-        $register->actual_cash      = $actualCash;
-        $register->closing_balance  = $expectedClosing;
-        $register->status           = 'closed';
-        $register->closed_at        = now();
-        $register->notes            = $request->input('notes', null);
+        // Capture breakdowns before closing (so timestamps still in range)
+        $paymentBreakdown = $this->paymentBreakdown($register);
+        $expenseBreakdown = $this->expenseBreakdown($register);
+
+        $register->actual_cash     = $actualCash;
+        $register->closing_balance = $expectedClosing;
+        $register->status          = 'closed';
+        $register->closed_at       = now();
+        $register->notes           = $request->input('notes', null);
         $register->save();
 
         return ApiResponse::make('Cash Register Closed', [
-            'register'         => $register,
-            'expected_closing' => $expectedClosing,
-            'actual_cash'      => $actualCash,
-            'difference'       => $difference,
+            'register'          => $register,
+            'payment_breakdown' => $paymentBreakdown,
+            'expense_breakdown' => $expenseBreakdown,
+            'expected_closing'  => $expectedClosing,
+            'actual_cash'       => $actualCash,
+            'difference'        => $difference,
         ]);
     }
 
     /**
-     * Daily cash report — summary of the current (or last) register.
+     * Daily cash report — full summary of the current (or last) register.
      */
     public function report()
     {
@@ -115,10 +178,16 @@ class CashRegisterController extends ApiBaseController
             ->first();
 
         if (!$register) {
-            return ApiResponse::make('No register found', ['register' => null]);
+            return ApiResponse::make('No register found', [
+                'register'          => null,
+                'payment_breakdown' => [],
+                'expense_breakdown' => [],
+                'expected_closing'  => 0,
+                'difference'        => null,
+            ]);
         }
 
-        $expectedClosing = $register->opening_balance
+        $expectedClosing  = $register->opening_balance
             + $register->total_received
             - $register->total_expense;
 
@@ -126,10 +195,15 @@ class CashRegisterController extends ApiBaseController
             ? $register->actual_cash - $expectedClosing
             : null;
 
+        $paymentBreakdown = $this->paymentBreakdown($register);
+        $expenseBreakdown = $this->expenseBreakdown($register);
+
         return ApiResponse::make('Cash Register Report', [
-            'register'         => $register,
-            'expected_closing' => $expectedClosing,
-            'difference'       => $difference,
+            'register'          => $register,
+            'payment_breakdown' => $paymentBreakdown,
+            'expense_breakdown' => $expenseBreakdown,
+            'expected_closing'  => $expectedClosing,
+            'difference'        => $difference,
         ]);
     }
 
