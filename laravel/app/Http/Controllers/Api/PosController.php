@@ -308,7 +308,7 @@ class PosController extends ApiBaseController
         \Log::info('[POS] after updateWarehouseHistory t=' . round(microtime(true)-$t0, 2));
 
         // Auto-generate journal entry for POS sale
-        AccountingService::handleOrder($order);
+        AccountingService::handleOrder($order, $saleMode);
         \Log::info('[POS] after handleOrder t=' . round(microtime(true)-$t0, 2));
 
         $savedOrder = Order::select('id', 'unique_id', 'invoice_number', 'user_id', 'staff_user_id', 'order_date', 'discount', 'shipping', 'tax_amount', 'subtotal', 'total', 'paid_amount', 'due_amount', 'total_items', 'total_quantity', 'order_type')
