@@ -61,6 +61,13 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::post('quotations/convert-to-sale/{id}', ['as' => 'api.quotations.convert-to-sale', 'uses' => 'QuotationController@convertToSale']);
         ApiRoute::resource('quotations', 'QuotationController', $options);
 
+        // Cash Register
+        ApiRoute::get('cash-register/status',  ['as' => 'api.cash-register.status',  'uses' => 'CashRegisterController@status']);
+        ApiRoute::post('cash-register/open',   ['as' => 'api.cash-register.open',    'uses' => 'CashRegisterController@open']);
+        ApiRoute::post('cash-register/close',  ['as' => 'api.cash-register.close',   'uses' => 'CashRegisterController@close']);
+        ApiRoute::get('cash-register/report',  ['as' => 'api.cash-register.report',  'uses' => 'CashRegisterController@report']);
+        ApiRoute::get('cash-register/history', ['as' => 'api.cash-register.history', 'uses' => 'CashRegisterController@history']);
+
         //POS
         ApiRoute::post('pos/products', ['as' => 'api.pos.products', 'uses' => 'PosController@posProducts']);
         ApiRoute::post('pos/payment', ['as' => 'api.pos.payment', 'uses' => 'PosController@addPosPayment']);

@@ -8,6 +8,7 @@ use App\Http\Requests\Api\Expense\IndexRequest;
 use App\Http\Requests\Api\Expense\StoreRequest;
 use App\Http\Requests\Api\Expense\UpdateRequest;
 use App\Http\Requests\Api\Expense\DeleteRequest;
+use App\Models\CashRegister;
 use App\Models\Expense;
 use Carbon\Carbon;
 use Examyou\RestAPI\Exceptions\ApiException;
@@ -63,6 +64,17 @@ class ExpenseController extends ApiBaseController
     {
         // Notifying to Warehouse
         Notify::send('expense_create', $expense);
+
+        // Update cash register expense total if one is open for this user
+        $loggedUser = user();
+        $cashRegister = CashRegister::where('user_id', $loggedUser->id)
+            ->where('status', 'open')
+            ->latest('opened_at')
+            ->first();
+        if ($cashRegister) {
+            $cashRegister->total_expense += (float) $expense->amount;
+            $cashRegister->save();
+        }
     }
 
     public function updating(Expense $expense)

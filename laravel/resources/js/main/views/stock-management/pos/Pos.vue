@@ -10,8 +10,34 @@
                     @back="() => $router.go(-1)"
                     class="p-0"
                 >
-                    <template v-if="innerWidth <= 768" #extra>
+                    <template #extra>
+                        <!-- Cash Register Status Badge -->
+                        <a-tag
+                            v-if="cashRegister"
+                            color="success"
+                            style="font-size: 12px; padding: 3px 10px; cursor: default;"
+                        >
+                            🟢 Register Open
+                        </a-tag>
+                        <a-tag
+                            v-else
+                            color="error"
+                            style="font-size: 12px; padding: 3px 10px; cursor: pointer;"
+                            @click="cashRegisterOpenVis = true"
+                        >
+                            🔴 Register Closed
+                        </a-tag>
+                        <a-button
+                            v-if="cashRegister"
+                            size="small"
+                            danger
+                            style="font-size: 12px;"
+                            @click="cashRegisterCloseVis = true"
+                        >
+                            🔒 Close Register
+                        </a-button>
                         <a-input
+                            v-if="innerWidth <= 768"
                             v-model:value="quickAddPhone"
                             placeholder="Phone"
                             style="width: 140px;"
@@ -1233,6 +1259,17 @@
         </template>
     </a-modal>
 
+    <!-- Cash Register Modals -->
+    <CashRegisterOpen
+        :visible="cashRegisterOpenVis"
+        @opened="onRegisterOpened"
+    />
+    <CashRegisterClose
+        :visible="cashRegisterCloseVis"
+        @cancelled="cashRegisterCloseVis = false"
+        @closed="onRegisterClosed"
+    />
+
     <PayNow
         :visible="payNowVisible"
         @closed="payNowClosed"
@@ -1344,6 +1381,8 @@ import { OrderSummary } from "../../../../common/components/product/style";
 import fields from "./fields";
 import ProductCardNew from "../../../../common/components/product/ProductCardNew.vue";
 import PayNow from "./PayNow.vue";
+import CashRegisterOpen from "./CashRegisterOpen.vue";
+import CashRegisterClose from "./CashRegisterClose.vue";
 import CustomerAddButton from "../../users/CustomerAddButton.vue";
 import InvoiceModal from "./Invoice.vue";
 import PosLayout1 from "./PosLayout1.vue";
@@ -1366,6 +1405,8 @@ export default {
         ProductCardNew,
         OrderSummary,
         PayNow,
+        CashRegisterOpen,
+        CashRegisterClose,
         CustomerAddButton,
         InvoiceModal,
     },
@@ -1505,8 +1546,43 @@ export default {
         // Reactive innerWidth (updates on window resize)
         const innerWidth = ref(window.innerWidth);
 
+        // ── Cash Register ──────────────────────────────────────────
+        const cashRegister          = ref(null);      // active open register or null
+        const cashRegisterLoading   = ref(false);
+        const cashRegisterOpenVis   = ref(false);     // open-register modal
+        const cashRegisterCloseVis  = ref(false);     // close-register modal
+
+        const loadCashRegisterStatus = () => {
+            cashRegisterLoading.value = true;
+            axiosAdmin.get('cash-register/status').then(res => {
+                cashRegister.value = res.data.register || null;
+                // If no open register, show the open modal
+                if (!cashRegister.value) {
+                    cashRegisterOpenVis.value = true;
+                }
+            }).catch(() => {
+                // Non-fatal — allow POS to load even if register check fails
+            }).finally(() => {
+                cashRegisterLoading.value = false;
+            });
+        };
+
+        const onRegisterOpened = (reg) => {
+            cashRegister.value     = reg;
+            cashRegisterOpenVis.value = false;
+        };
+
+        const onRegisterClosed = () => {
+            cashRegister.value     = null;
+            cashRegisterCloseVis.value = false;
+            // Re-show open modal so user can start fresh
+            cashRegisterOpenVis.value = true;
+        };
+        // ───────────────────────────────────────────────────────────
+
         onMounted(() => {
             getPreFetchData();
+            loadCashRegisterStatus();
             window.addEventListener("resize", () => {
                 innerWidth.value = window.innerWidth;
             });
@@ -1837,6 +1913,13 @@ export default {
         };
 
         const payNow = async () => {
+            // Block sales if cash register is not open
+            if (!cashRegister.value) {
+                cashRegisterOpenVis.value = true;
+                message.warning('Please open the cash register before making a sale.');
+                return;
+            }
+
             if (!formData.value.user_id && quickAddPhone.value && quickAddPhone.value.length >= 3) {
                 if (!quickAddName.value) {
                     message.warning('Please enter a customer name to proceed.');
@@ -2129,6 +2212,14 @@ export default {
             selectPopupWarehouse,
             showStockPopup,
             addToCartFromPopup,
+
+            // Cash Register
+            cashRegister,
+            cashRegisterLoading,
+            cashRegisterOpenVis,
+            cashRegisterCloseVis,
+            onRegisterOpened,
+            onRegisterClosed,
         };
     },
 };

@@ -13,6 +13,7 @@ use App\Models\ProductDetails;
 use App\Models\Settings;
 use App\Models\Tax;
 use App\Models\Unit;
+use App\Models\CashRegister;
 use App\Models\Warehouse;
 use App\Services\AccountingService;
 use Carbon\Carbon;
@@ -314,6 +315,18 @@ class PosController extends ApiBaseController
         // Auto-generate journal entry for POS sale
         AccountingService::handleOrder($order, $saleMode);
         \Log::info('[POS] after handleOrder t=' . round(microtime(true)-$t0, 2));
+
+        // Update cash register totals if one is open for this user
+        $cashRegister = CashRegister::where('user_id', $loggedInUser->id)
+            ->where('status', 'open')
+            ->latest('opened_at')
+            ->first();
+        if ($cashRegister) {
+            $order->refresh();
+            $cashRegister->total_sales    += (float) $order->total;
+            $cashRegister->total_received += (float) $order->paid_amount;
+            $cashRegister->save();
+        }
 
         $savedOrder = Order::select('id', 'unique_id', 'invoice_number', 'invoice_type', 'user_id', 'staff_user_id', 'order_date', 'discount', 'shipping', 'tax_amount', 'subtotal', 'total', 'paid_amount', 'due_amount', 'total_items', 'total_quantity', 'order_type')
             ->with(['user:id,name,email,phone', 'items:id,order_id,product_id,unit_id,unit_price,subtotal,quantity,mrp,total_tax,warehouse_id', 'items.product:id,name', 'items.unit:id,name,short_name', 'items.warehouse:id,name', 'orderPayments:id,order_id,payment_id,amount', 'orderPayments.payment:id,payment_mode_id', 'orderPayments.payment.paymentMode:id,name', 'staffMember:id,name'])
