@@ -3,235 +3,270 @@
         :open="visible"
         :title="null"
         :footer="null"
-        width="660px"
+        width="680px"
         centered
         @cancel="$emit('cancelled')"
     >
-        <!-- ── Modal Header ─────────────────────────────────────────── -->
-        <div style="display:flex; align-items:center; gap:10px; padding-bottom:12px; border-bottom:1px solid #f0f0f0; margin-bottom:14px;">
-            <div style="font-size:28px; line-height:1;">🔒</div>
-            <div>
-                <div style="font-size:16px; font-weight:700; color:#1d1d1d;">Close Cash Register</div>
-                <div style="font-size:12px; color:#999;">
-                    {{ report?.register?.opened_at ? 'Opened: ' + formatDt(report.register.opened_at) : 'Daily Summary' }}
-                </div>
-            </div>
+        <!-- ══ STORE HEADER ══════════════════════════════════════════ -->
+        <div class="crc-header">
+            <div class="crc-store-name">{{ appSetting?.name || 'MA Electronics' }}</div>
+            <div class="crc-sub">Point of Sale — Register Closing Report</div>
         </div>
 
         <a-spin :spinning="reportLoading">
             <div v-if="report">
 
-                <!-- ── Top 3 Stat Cards ───────────────────────────── -->
+                <!-- ══ SESSION META ROW ════════════════════════════════ -->
+                <div class="crc-meta-row">
+                    <div class="crc-meta-item">
+                        <span class="crc-meta-icon">👤</span>
+                        <div>
+                            <div class="crc-meta-label">Cashier</div>
+                            <div class="crc-meta-val">{{ user?.name || '—' }}</div>
+                        </div>
+                    </div>
+                    <div class="crc-meta-sep"></div>
+                    <div class="crc-meta-item">
+                        <span class="crc-meta-icon">🏬</span>
+                        <div>
+                            <div class="crc-meta-label">Branch</div>
+                            <div class="crc-meta-val">{{ warehouse?.name || '—' }}</div>
+                        </div>
+                    </div>
+                    <div class="crc-meta-sep"></div>
+                    <div class="crc-meta-item">
+                        <span class="crc-meta-icon">🕐</span>
+                        <div>
+                            <div class="crc-meta-label">Shift Opened</div>
+                            <div class="crc-meta-val">{{ fmtDt(report.register?.opened_at) }}</div>
+                        </div>
+                    </div>
+                    <div class="crc-meta-sep"></div>
+                    <div class="crc-meta-item">
+                        <span class="crc-meta-icon">📅</span>
+                        <div>
+                            <div class="crc-meta-label">Closing Date</div>
+                            <div class="crc-meta-val">{{ todayDate }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══ TOP 3 SUMMARY CARDS ════════════════════════════ -->
                 <a-row :gutter="[8,8]" style="margin-bottom:14px;">
                     <a-col :span="8">
-                        <div class="cr-card cr-blue">
-                            <div class="cr-card-label">Opening Balance</div>
-                            <div class="cr-card-value">{{ fmt(report.register?.opening_balance) }}</div>
+                        <div class="crc-card crc-card-blue">
+                            <div class="crc-card-icon">💼</div>
+                            <div class="crc-card-label">Opening Balance</div>
+                            <div class="crc-card-val">{{ fmt(report.register?.opening_balance) }}</div>
                         </div>
                     </a-col>
                     <a-col :span="8">
-                        <div class="cr-card cr-green">
-                            <div class="cr-card-label">Total Sales</div>
-                            <div class="cr-card-value">{{ fmt(report.register?.total_sales) }}</div>
+                        <div class="crc-card crc-card-green">
+                            <div class="crc-card-icon">📈</div>
+                            <div class="crc-card-label">Total Sales</div>
+                            <div class="crc-card-val">{{ fmt(report.register?.total_sales) }}</div>
                         </div>
                     </a-col>
                     <a-col :span="8">
-                        <div class="cr-card cr-red">
-                            <div class="cr-card-label">Total Expenses</div>
-                            <div class="cr-card-value">{{ fmt(report.register?.total_expense) }}</div>
+                        <div class="crc-card crc-card-red">
+                            <div class="crc-card-icon">💸</div>
+                            <div class="crc-card-label">Total Expenses</div>
+                            <div class="crc-card-val">{{ fmt(report.register?.total_expense) }}</div>
                         </div>
                     </a-col>
                 </a-row>
 
-                <!-- ── Payment Method × Invoice Type Matrix ──────── -->
-                <div class="cr-section-label">💳 Payment Summary — Received by Method</div>
+                <!-- ══ PAYMENT BREAKDOWN ══════════════════════════════ -->
+                <div class="crc-section-head">
+                    <span>💳 Cash Received by Payment Method</span>
+                    <a-tag v-if="colTotals.grand > 0" color="green">
+                        Total {{ fmt(colTotals.grand) }}
+                    </a-tag>
+                </div>
 
-                <table class="cr-matrix-table">
+                <table class="crc-table">
                     <thead>
                         <tr>
-                            <th class="cr-th-method">Payment Method</th>
-                            <th v-if="colVisible.normal"  class="cr-th-type cr-col-normal">Normal Sales</th>
-                            <th v-if="colVisible.advance" class="cr-th-type cr-col-advance">Advance</th>
-                            <th v-if="colVisible.credit"  class="cr-th-type cr-col-credit">Credit Paid</th>
-                            <th class="cr-th-total">Total</th>
+                            <th class="crc-th-name">Method</th>
+                            <th v-if="colVisible.normal"  class="crc-th-type">Normal Sales</th>
+                            <th v-if="colVisible.advance" class="crc-th-type crc-advance">Advance</th>
+                            <th v-if="colVisible.credit"  class="crc-th-type crc-credit">Credit Paid</th>
+                            <th class="crc-th-total">Total</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr
                             v-for="(row, i) in paymentRows"
                             :key="i"
-                            :class="i % 2 === 0 ? 'cr-row-even' : 'cr-row-odd'"
+                            class="crc-tbody-row"
                         >
-                            <td class="cr-td-method">
-                                <span class="cr-method-dot" :style="{ background: methodColor(row.name) }"></span>
+                            <td class="crc-td-name">
+                                <span class="crc-dot" :style="{ background: dotColor(row.name) }"></span>
                                 {{ row.name }}
                             </td>
-                            <td v-if="colVisible.normal"  class="cr-td-amount">
-                                {{ row.normal  > 0 ? fmt(row.normal)  : '—' }}
-                            </td>
-                            <td v-if="colVisible.advance" class="cr-td-amount cr-col-advance">
-                                {{ row.advance > 0 ? fmt(row.advance) : '—' }}
-                            </td>
-                            <td v-if="colVisible.credit"  class="cr-td-amount cr-col-credit">
-                                {{ row.credit  > 0 ? fmt(row.credit)  : '—' }}
-                            </td>
-                            <td class="cr-td-total">{{ fmt(row.total) }}</td>
+                            <td v-if="colVisible.normal"  class="crc-td-amt">{{ row.normal  > 0 ? fmt(row.normal)  : '—' }}</td>
+                            <td v-if="colVisible.advance" class="crc-td-amt crc-advance">{{ row.advance > 0 ? fmt(row.advance) : '—' }}</td>
+                            <td v-if="colVisible.credit"  class="crc-td-amt crc-credit">{{ row.credit  > 0 ? fmt(row.credit)  : '—' }}</td>
+                            <td class="crc-td-row-total">{{ fmt(row.total) }}</td>
                         </tr>
-
-                        <!-- Empty state -->
                         <tr v-if="paymentRows.length === 0">
-                            <td colspan="5" style="text-align:center; color:#bbb; padding:14px; font-style:italic;">
-                                No payments received yet
+                            <td :colspan="2 + (colVisible.normal?1:0) + (colVisible.advance?1:0) + (colVisible.credit?1:0)" class="crc-empty">
+                                No payments recorded this session
                             </td>
                         </tr>
                     </tbody>
                     <tfoot>
-                        <tr class="cr-footer-row">
-                            <td class="cr-td-method" style="font-weight:700;">TOTAL RECEIVED</td>
-                            <td v-if="colVisible.normal"  class="cr-td-amount cr-footer-cell">
-                                {{ fmt(colTotals.normal) }}
-                            </td>
-                            <td v-if="colVisible.advance" class="cr-td-amount cr-footer-cell">
-                                {{ fmt(colTotals.advance) }}
-                            </td>
-                            <td v-if="colVisible.credit"  class="cr-td-amount cr-footer-cell">
-                                {{ fmt(colTotals.credit) }}
-                            </td>
-                            <td class="cr-td-total cr-footer-grand">{{ fmt(colTotals.grand) }}</td>
+                        <tr class="crc-tfoot-row">
+                            <td class="crc-td-name" style="font-weight:700;">TOTAL</td>
+                            <td v-if="colVisible.normal"  class="crc-td-amt crc-foot-cell">{{ fmt(colTotals.normal) }}</td>
+                            <td v-if="colVisible.advance" class="crc-td-amt crc-foot-cell crc-advance">{{ fmt(colTotals.advance) }}</td>
+                            <td v-if="colVisible.credit"  class="crc-td-amt crc-foot-cell crc-credit">{{ fmt(colTotals.credit) }}</td>
+                            <td class="crc-td-grand">{{ fmt(colTotals.grand) }}</td>
                         </tr>
                     </tfoot>
                 </table>
 
-                <!-- ── Expense Breakdown (collapsed by default) ───── -->
-                <div v-if="expenseBreakdown.length > 0" style="margin-top:14px;">
-                    <a-collapse ghost>
-                        <a-collapse-panel key="1">
-                            <template #header>
-                                <span class="cr-section-label" style="margin-bottom:0;">
-                                    💸 Expense Breakdown
-                                    <a-tag color="red" style="margin-left:8px;">
-                                        {{ fmt(report.register?.total_expense) }}
-                                    </a-tag>
-                                </span>
-                            </template>
-                            <table class="cr-matrix-table">
-                                <thead>
-                                    <tr>
-                                        <th class="cr-th-method">Category</th>
-                                        <th class="cr-th-total">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="(e, i) in expenseBreakdown" :key="i" :class="i%2===0?'cr-row-even':'cr-row-odd'">
-                                        <td class="cr-td-method">{{ e.name }}</td>
-                                        <td class="cr-td-total" style="color:#cf1322;">{{ fmt(e.total) }}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </a-collapse-panel>
-                    </a-collapse>
-                </div>
+                <!-- ══ EXPENSE BREAKDOWN (collapsible) ═══════════════ -->
+                <a-collapse
+                    v-if="expenseBreakdown.length > 0"
+                    ghost
+                    style="margin-top:10px;"
+                >
+                    <a-collapse-panel key="1">
+                        <template #header>
+                            <span class="crc-section-head" style="margin-bottom:0; display:inline-flex; gap:8px; align-items:center;">
+                                💸 Expense Breakdown
+                                <a-tag color="red">{{ fmt(report.register?.total_expense) }}</a-tag>
+                            </span>
+                        </template>
+                        <table class="crc-table">
+                            <thead><tr>
+                                <th class="crc-th-name">Category</th>
+                                <th class="crc-th-total">Amount</th>
+                            </tr></thead>
+                            <tbody>
+                                <tr v-for="(e, i) in expenseBreakdown" :key="i" class="crc-tbody-row">
+                                    <td class="crc-td-name">{{ e.name }}</td>
+                                    <td class="crc-td-row-total" style="color:#cf1322;">{{ fmt(e.total) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </a-collapse-panel>
+                </a-collapse>
 
-                <!-- ── Expected Closing ───────────────────────────── -->
-                <div class="cr-expected-box" style="margin-top:14px;">
+                <!-- ══ EXPECTED CLOSING BALANCE ═══════════════════════ -->
+                <div class="crc-expected-box">
                     <div>
-                        <div style="font-size:11px; color:#1d39c4; text-transform:uppercase; letter-spacing:1px; font-weight:600;">Expected Closing Balance</div>
-                        <div style="font-size:11px; color:#91caff; margin-top:2px;">
-                            Opening + Received − Expenses
+                        <div class="crc-expected-label">Expected Closing Balance</div>
+                        <div class="crc-expected-formula">Opening ({{ fmt(report.register?.opening_balance) }}) + Received ({{ fmt(colTotals.grand) }}) − Expenses ({{ fmt(report.register?.total_expense) }})</div>
+                    </div>
+                    <div class="crc-expected-amount">{{ fmt(report.expected_closing) }}</div>
+                </div>
+
+                <a-divider style="margin:14px 0 12px;">Cash Count &amp; Verify</a-divider>
+
+                <!-- ══ ACTUAL CASH INPUT ════════════════════════════════ -->
+                <div class="crc-field-label">💵 Actual Cash Counted in Drawer</div>
+                <a-input-number
+                    v-model:value="actualCash"
+                    :min="0"
+                    :precision="0"
+                    :step="500"
+                    size="large"
+                    style="width:100%; font-size:22px; font-weight:700;"
+                    placeholder="Count and enter cash in drawer"
+                    @pressEnter="handleClose"
+                >
+                    <template #prefix>
+                        <span style="color:#999; font-size:14px;">Rs.</span>
+                    </template>
+                </a-input-number>
+
+                <!-- ══ DIFFERENCE INDICATOR ════════════════════════════ -->
+                <div
+                    v-if="actualCash !== null && actualCash !== undefined && actualCash !== ''"
+                    class="crc-diff"
+                    :class="difference === 0 ? 'crc-diff-ok' : difference > 0 ? 'crc-diff-over' : 'crc-diff-short'"
+                    style="margin-top:10px;"
+                >
+                    <div class="crc-diff-emoji">
+                        {{ difference === 0 ? '✅' : difference > 0 ? '📈' : '📉' }}
+                    </div>
+                    <div class="crc-diff-center">
+                        <div class="crc-diff-status">
+                            {{ difference === 0 ? 'Perfectly Balanced' : difference > 0 ? 'Cash Over' : 'Cash Short' }}
+                        </div>
+                        <div class="crc-diff-detail">
+                            Counted <strong>{{ fmt(actualCash) }}</strong> · Expected <strong>{{ fmt(report.expected_closing) }}</strong>
                         </div>
                     </div>
-                    <div style="font-size:22px; font-weight:800; color:#1d39c4;">
-                        {{ fmt(report.expected_closing) }}
+                    <div class="crc-diff-amount">
+                        {{ difference > 0 ? '+' : '' }}{{ fmt(difference) }}
                     </div>
                 </div>
 
-                <a-divider style="margin:14px 0 10px;">Count &amp; Close</a-divider>
+                <!-- ══ NOTES ══════════════════════════════════════════ -->
+                <div style="margin-top:12px;">
+                    <div class="crc-field-label">📝 Closing Notes <span style="font-weight:400; color:#bbb;">(optional)</span></div>
+                    <a-input v-model:value="closeNotes" placeholder="End-of-day remarks" allow-clear />
+                </div>
 
-                <!-- ── Actual Cash Input ──────────────────────────── -->
-                <a-form layout="vertical">
-                    <a-form-item label="Actual Cash in Drawer (physically counted)">
-                        <a-input-number
-                            v-model:value="actualCash"
-                            :min="0"
-                            :precision="2"
-                            :step="100"
-                            size="large"
-                            style="width:100%; font-size:18px;"
-                            placeholder="Enter the cash you counted in the drawer"
-                        />
-                    </a-form-item>
+                <a-alert v-if="errorMsg" type="error" :message="errorMsg" show-icon style="margin:12px 0;" />
 
-                    <!-- Difference Indicator -->
-                    <div
-                        v-if="actualCash !== null && actualCash !== undefined && actualCash !== ''"
-                        class="cr-diff-box"
-                        :class="difference >= 0 ? 'cr-diff-positive' : 'cr-diff-negative'"
-                    >
-                        <div class="cr-diff-label">
-                            {{ difference === 0 ? '✅ Balanced' : difference > 0 ? '📈 Excess Cash' : '📉 Cash Short' }}
-                        </div>
-                        <div class="cr-diff-amount">
-                            {{ difference > 0 ? '+' : '' }}{{ fmt(difference) }}
-                        </div>
-                        <div class="cr-diff-sub">
-                            Counted <strong>{{ fmt(actualCash) }}</strong>
-                            &nbsp;·&nbsp; Expected <strong>{{ fmt(report.expected_closing) }}</strong>
-                        </div>
-                    </div>
-
-                    <a-form-item label="Closing Notes (optional)" style="margin-top:10px;">
-                        <a-input v-model:value="closeNotes" placeholder="Any end-of-day remarks" allow-clear />
-                    </a-form-item>
-
-                    <a-alert v-if="errorMsg" type="error" :message="errorMsg" show-icon style="margin-bottom:12px;" />
-
-                    <a-row :gutter="10">
-                        <a-col :span="12">
-                            <a-button block size="large" @click="$emit('cancelled')">Cancel</a-button>
-                        </a-col>
-                        <a-col :span="12">
-                            <a-button
-                                type="primary" danger block size="large"
-                                :loading="closeLoading"
-                                :disabled="actualCash === null || actualCash === undefined || actualCash === ''"
-                                @click="handleClose"
-                            >
-                                🔒 Close Register
-                            </a-button>
-                        </a-col>
-                    </a-row>
-                </a-form>
+                <!-- ══ ACTION BUTTONS ═══════════════════════════════════ -->
+                <a-row :gutter="10" style="margin-top:16px;">
+                    <a-col :span="10">
+                        <a-button block size="large" style="height:48px;" @click="$emit('cancelled')">
+                            Cancel
+                        </a-button>
+                    </a-col>
+                    <a-col :span="14">
+                        <a-button
+                            type="primary" danger block size="large"
+                            style="height:48px; font-size:15px; font-weight:700;"
+                            :loading="closeLoading"
+                            :disabled="actualCash === null || actualCash === undefined || actualCash === ''"
+                            @click="handleClose"
+                        >
+                            🔒 &nbsp; Close Register
+                        </a-button>
+                    </a-col>
+                </a-row>
 
             </div>
 
-            <a-empty v-else-if="!reportLoading" description="No open register found." />
+            <a-empty v-else-if="!reportLoading" description="No open cash register found." style="padding:40px 0;" />
         </a-spin>
     </a-modal>
 </template>
 
 <script>
 import { ref, computed, watch } from "vue";
+import { useStore } from "vuex";
 
-// Colour palette for payment method dots
-const METHOD_COLORS = {
-    cash:         '#52c41a',
-    'easy paisa': '#13c2c2',
-    easypaisa:    '#13c2c2',
-    jazzcash:     '#fa8c16',
-    card:         '#1677ff',
-    bank:         '#722ed1',
-    'bank transfer': '#722ed1',
-    cheque:       '#9254de',
-    online:       '#36cfc9',
+const DOT_COLORS = {
+    'cash':           '#52c41a',
+    'easy paisa':     '#13c2c2',
+    'easypaisa':      '#13c2c2',
+    'jazzcash':       '#fa8c16',
+    'jazz cash':      '#fa8c16',
+    'card':           '#1677ff',
+    'bank':           '#722ed1',
+    'bank transfer':  '#722ed1',
+    'cheque':         '#9254de',
+    'online':         '#36cfc9',
 };
-function methodColor(name) {
-    return METHOD_COLORS[(name || '').toLowerCase()] || '#8c8c8c';
-}
 
 export default {
     props: { visible: { type: Boolean, default: false } },
     emits: ['cancelled', 'closed'],
     setup(props, { emit }) {
+        const store = useStore();
+
+        const user        = computed(() => store.state.auth.user);
+        const warehouse   = computed(() => store.state.auth.warehouse);
+        const appSetting  = computed(() => store.state.auth.appSetting);
+
         const report           = ref(null);
         const paymentRows      = ref([]);
         const colTotals        = ref({ normal: 0, credit: 0, advance: 0, grand: 0 });
@@ -242,7 +277,10 @@ export default {
         const closeNotes       = ref('');
         const errorMsg         = ref('');
 
-        // Only show columns that actually have data
+        const todayDate = computed(() =>
+            new Date().toLocaleDateString('en-PK', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+        );
+
         const colVisible = computed(() => ({
             normal:  (colTotals.value.normal  || 0) > 0,
             credit:  (colTotals.value.credit  || 0) > 0,
@@ -255,19 +293,19 @@ export default {
         });
 
         const fmt = (v) => {
-            if (v === null || v === undefined) return 'Rs. 0.00';
-            return 'Rs. ' + parseFloat(v).toLocaleString('en-PK', {
-                minimumFractionDigits: 2, maximumFractionDigits: 2
+            if (v === null || v === undefined) return 'Rs. 0';
+            return 'Rs. ' + parseFloat(v).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        };
+
+        const fmtDt = (dt) => {
+            if (!dt) return '—';
+            return new Date(dt).toLocaleString('en-PK', {
+                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
             });
         };
 
-        const formatDt = (dt) => {
-            if (!dt) return '-';
-            return new Date(dt).toLocaleString('en-PK', {
-                day: '2-digit', month: 'short', year: 'numeric',
-                hour: '2-digit', minute: '2-digit',
-            });
-        };
+        const dotColor = (name) =>
+            DOT_COLORS[(name || '').toLowerCase()] || '#8c8c8c';
 
         const loadReport = () => {
             if (!props.visible) return;
@@ -309,61 +347,156 @@ export default {
         watch(() => props.visible, (v) => { if (v) loadReport(); });
 
         return {
+            user, warehouse, appSetting,
             report, paymentRows, colTotals, expenseBreakdown,
             reportLoading, closeLoading,
             actualCash, closeNotes, errorMsg,
-            colVisible, difference,
-            fmt, formatDt, methodColor, handleClose,
+            colVisible, difference, todayDate,
+            fmt, fmtDt, dotColor, handleClose,
         };
     },
 };
 </script>
 
 <style scoped>
-/* ── Stat Cards ─────────────────────────────────────────── */
-.cr-card { border-radius: 8px; padding: 10px 12px; text-align: center; border: 1px solid transparent; }
-.cr-card-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
-.cr-card-value { font-size: 15px; font-weight: 700; }
-.cr-blue  { background: #e6f4ff; border-color: #91caff; } .cr-blue  .cr-card-value { color: #1677ff; }
-.cr-green { background: #f6ffed; border-color: #b7eb8f; } .cr-green .cr-card-value { color: #389e0d; }
-.cr-red   { background: #fff1f0; border-color: #ffa39e; } .cr-red   .cr-card-value { color: #cf1322; }
-
-/* ── Section Label ──────────────────────────────────────── */
-.cr-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #555; margin-bottom: 6px; }
-
-/* ── Matrix Table ───────────────────────────────────────── */
-.cr-matrix-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.cr-matrix-table th, .cr-matrix-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; }
-.cr-th-method { text-align: left; color: #555; font-weight: 600; background: #fafafa; }
-.cr-th-type   { text-align: right; color: #555; font-weight: 600; background: #fafafa; min-width: 110px; }
-.cr-th-total  { text-align: right; color: #333; font-weight: 700; background: #f5f5f5; min-width: 120px; }
-.cr-td-method { color: #333; display: flex; align-items: center; gap: 7px; }
-.cr-td-amount { text-align: right; color: #555; }
-.cr-td-total  { text-align: right; font-weight: 700; color: #1677ff; }
-.cr-row-even  { background: #fff; }
-.cr-row-odd   { background: #fafafa; }
-.cr-col-advance { color: #722ed1 !important; }
-.cr-col-credit  { color: #d46b08 !important; }
-.cr-footer-row  { background: #f0f5ff !important; border-top: 2px solid #adc6ff; }
-.cr-footer-cell { font-weight: 700; color: #1d39c4; }
-.cr-footer-grand{ text-align: right; font-weight: 800; color: #1d39c4; font-size: 14px; }
-
-/* ── Method dot ─────────────────────────────────────────── */
-.cr-method-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-
-/* ── Expected Closing Box ───────────────────────────────── */
-.cr-expected-box {
-    background: #e6f4ff; border: 1px solid #91caff; border-radius: 8px;
-    padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+/* ── Header ─────────────────────────────────────────────── */
+.crc-header {
+    text-align: center;
+    padding: 6px 0 12px;
+    border-bottom: 2px solid #cf1322;
+    margin-bottom: 14px;
+}
+.crc-store-name {
+    font-size: 18px;
+    font-weight: 800;
+    color: #cf1322;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.crc-sub {
+    font-size: 10px;
+    color: #888;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-top: 2px;
 }
 
-/* ── Difference Indicator ───────────────────────────────── */
-.cr-diff-box { border-radius: 8px; padding: 12px 16px; text-align: center; margin-bottom: 12px; }
-.cr-diff-positive { background: #f6ffed; border: 1px solid #b7eb8f; }
-.cr-diff-negative { background: #fff1f0; border: 1px solid #ffa39e; }
-.cr-diff-label  { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
-.cr-diff-amount { font-size: 26px; font-weight: 800; }
-.cr-diff-positive .cr-diff-amount { color: #389e0d; }
-.cr-diff-negative .cr-diff-amount { color: #cf1322; }
-.cr-diff-sub    { font-size: 11px; color: #888; margin-top: 4px; }
+/* ── Meta Row ───────────────────────────────────────────── */
+.crc-meta-row {
+    display: flex;
+    background: #fafafa;
+    border: 1px solid #f0f0f0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    gap: 6px;
+    align-items: center;
+}
+.crc-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 1;
+}
+.crc-meta-sep {
+    width: 1px;
+    height: 28px;
+    background: #e8e8e8;
+}
+.crc-meta-icon { font-size: 18px; line-height: 1; }
+.crc-meta-label { font-size: 9px; color: #bbb; text-transform: uppercase; letter-spacing: 0.8px; }
+.crc-meta-val   { font-size: 12px; font-weight: 700; color: #333; }
+
+/* ── Summary Cards ──────────────────────────────────────── */
+.crc-card {
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+    border: 1px solid transparent;
+}
+.crc-card-icon  { font-size: 18px; margin-bottom: 4px; }
+.crc-card-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+.crc-card-val   { font-size: 15px; font-weight: 800; margin-top: 2px; }
+.crc-card-blue  { background: #e6f4ff; border-color: #91caff; } .crc-card-blue  .crc-card-val { color: #1677ff; }
+.crc-card-green { background: #f6ffed; border-color: #b7eb8f; } .crc-card-green .crc-card-val { color: #389e0d; }
+.crc-card-red   { background: #fff1f0; border-color: #ffa39e; } .crc-card-red   .crc-card-val { color: #cf1322; }
+
+/* ── Section Heading ────────────────────────────────────── */
+.crc-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+}
+
+/* ── Payment Matrix Table ───────────────────────────────── */
+.crc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.crc-table th, .crc-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; }
+.crc-th-name  { text-align: left;  background: #fafafa; color: #555; font-weight: 700; }
+.crc-th-type  { text-align: right; background: #fafafa; color: #555; font-weight: 600; min-width: 100px; }
+.crc-th-total { text-align: right; background: #f5f5f5; color: #333; font-weight: 700; min-width: 115px; }
+.crc-tbody-row:nth-child(odd) { background: #fff; }
+.crc-tbody-row:nth-child(even) { background: #fafafa; }
+.crc-td-name      { display: flex; align-items: center; gap: 7px; color: #333; white-space: nowrap; }
+.crc-td-amt       { text-align: right; color: #555; }
+.crc-td-row-total { text-align: right; font-weight: 700; color: #1677ff; }
+.crc-td-grand     { text-align: right; font-weight: 800; color: #1d39c4; font-size: 14px; }
+.crc-advance      { color: #722ed1 !important; }
+.crc-credit       { color: #d46b08 !important; }
+.crc-tfoot-row    { background: #f0f5ff !important; border-top: 2px solid #adc6ff; }
+.crc-foot-cell    { font-weight: 700; color: #1d39c4 !important; }
+.crc-empty        { text-align: center; color: #bbb; padding: 16px; font-style: italic; }
+.crc-dot          { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+
+/* ── Expected Closing ───────────────────────────────────── */
+.crc-expected-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #e6f4ff;
+    border: 1px solid #91caff;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 12px;
+}
+.crc-expected-label   { font-size: 11px; font-weight: 700; color: #1d39c4; text-transform: uppercase; letter-spacing: 0.8px; }
+.crc-expected-formula { font-size: 10px; color: #91caff; margin-top: 2px; }
+.crc-expected-amount  { font-size: 24px; font-weight: 800; color: #1d39c4; }
+
+/* ── Field Label ─────────────────────────────────────────── */
+.crc-field-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+}
+
+/* ── Difference Box ─────────────────────────────────────── */
+.crc-diff {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 8px;
+    padding: 12px 16px;
+    border: 1px solid transparent;
+}
+.crc-diff-ok    { background: #f6ffed; border-color: #b7eb8f; }
+.crc-diff-over  { background: #f6ffed; border-color: #b7eb8f; }
+.crc-diff-short { background: #fff1f0; border-color: #ffa39e; }
+.crc-diff-emoji  { font-size: 26px; line-height: 1; }
+.crc-diff-center { flex: 1; }
+.crc-diff-status { font-size: 13px; font-weight: 700; }
+.crc-diff-ok    .crc-diff-status, .crc-diff-over .crc-diff-status { color: #389e0d; }
+.crc-diff-short .crc-diff-status { color: #cf1322; }
+.crc-diff-detail { font-size: 11px; color: #888; margin-top: 2px; }
+.crc-diff-amount { font-size: 22px; font-weight: 800; }
+.crc-diff-ok    .crc-diff-amount, .crc-diff-over .crc-diff-amount { color: #389e0d; }
+.crc-diff-short .crc-diff-amount { color: #cf1322; }
 </style>
