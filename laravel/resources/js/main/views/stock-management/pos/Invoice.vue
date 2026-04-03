@@ -383,9 +383,9 @@ export default defineComponent({
             const invType = props.order?.invoice_type;
             if (invType === 'credit')  return 'CREDIT';
             if (invType === 'advance') return 'ADVANCE';
-            if (invType === 'normal')  return 'INVCR';
+            if (invType === 'normal')  return 'INVOICE';
             const t = props.order?.order_type;
-            if (t === 'sales') return 'INVCR';
+            if (t === 'sales') return 'INVOICE';
             if (t === 'purchases') return 'PUR';
             if (t === 'purchase-returns') return 'PUR-RET';
             if (t === 'sales-returns') return 'SALE-RET';
