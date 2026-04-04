@@ -16,6 +16,17 @@ axiosAdmin.defaults.headers.common['X-CSRF-TOKEN'] = document.head.querySelector
 if (localStorage.getItem('auth_token')) {
     axiosAdmin.defaults.headers.common['Authorization'] = 'Bearer ' + localStorage.getItem('auth_token');
 }
+
+// Always send the currently selected branch/warehouse with every request.
+// The PHP warehouse() helper reads this header to scope all branch-based queries.
+axiosAdmin.interceptors.request.use(function (config) {
+    const warehouse = store.state.auth.warehouse;
+    if (warehouse && warehouse.xid) {
+        config.headers['Selected-Warehouse-Xid'] = warehouse.xid;
+    }
+    return config;
+});
+
 // Axios error listener
 axiosAdmin.interceptors.response.use(function (response) {
     return response.data;
@@ -28,7 +39,6 @@ axiosAdmin.interceptors.response.use(function (response) {
         delete window.axiosAdmin.defaults.headers.common.Authorization;
         localStorage.removeItem('auth_token');
         localStorage.setItem('auth_user', null);
-        // throw new Error('Unauthorized');
     } else if (errorCode === 400) {
         var errMessage = error.response.data.error.message;
         message.error(errMessage);
@@ -46,7 +56,6 @@ axiosAdmin.interceptors.response.use(function (response) {
                 name: "admin.subscription.current_plan",
             });
         }
-
     }
 
     return Promise.reject(error.response);
