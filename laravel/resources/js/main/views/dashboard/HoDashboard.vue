@@ -22,19 +22,7 @@
         </template>
     </AdminPageHeader>
 
-    <!-- ── Access Denied ──────────────────────────────────────────────────── -->
-    <div v-if="!isAdmin" class="ho-access-denied">
-        <a-result status="403" title="Access Restricted"
-            sub-title="This dashboard is only available to administrators and head office users.">
-            <template #extra>
-                <router-link :to="{ name: 'admin.dashboard.index' }">
-                    <a-button type="primary">Go to My Dashboard</a-button>
-                </router-link>
-            </template>
-        </a-result>
-    </div>
-
-    <template v-else>
+    <template>
         <!-- ── Filter Bar ─────────────────────────────────────────────────── -->
         <div class="ho-filter-bar no-print">
             <div class="ho-filter-inner">
@@ -488,7 +476,6 @@ export default defineComponent({
 
         // ── Load ─────────────────────────────────────────────────────────────
         const load = async () => {
-            if (!isAdmin.value) return;
             loading.value = true;
             try {
                 const res = await window.axiosAdmin.get('ho-dashboard', {
@@ -507,10 +494,10 @@ export default defineComponent({
 
         const print = () => window.print();
 
-        onMounted(() => { if (isAdmin.value) load(); });
+        onMounted(() => { load(); });
 
         return {
-            loading, isAdmin, filters, data, activeQuick,
+            loading, filters, data, activeQuick,
             quickFilters, storeColors, totalCash, fmtAvg,
             storeBarData, barOptions,
             dailyLineData, lineOptions,

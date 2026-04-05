@@ -346,7 +346,6 @@
                                 </span>
                         </template>
                         <a-menu-item
-                                v-if="permsArray.includes('admin')"
                                 @click="
                                         () => {
                                                 menuSelected();
