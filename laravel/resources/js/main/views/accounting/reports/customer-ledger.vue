@@ -21,7 +21,7 @@
             <a-col :span="7">
                 <label class="block text-xs text-gray-500 mb-1">Customer (optional — leave blank for all)</label>
                 <a-select v-model:value="filters.user_id" style="width:100%" show-search :filter-option="filterOption" placeholder="All Customers" allow-clear>
-                    <a-select-option v-for="c in customers" :key="c.id" :value="c.id">{{ c.name }}</a-select-option>
+                    <a-select-option v-for="c in customers" :key="c.xid" :value="c.xid">{{ c.name }}</a-select-option>
                 </a-select>
             </a-col>
             <a-col :span="5">

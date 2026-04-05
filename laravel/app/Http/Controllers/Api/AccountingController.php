@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\ApiBaseController;
+use App\Classes\Common;
 use App\Models\Category;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
@@ -341,7 +342,7 @@ class AccountingController extends ApiBaseController
         $companyId = company()->id;
         $dateFrom  = $request->date_from ?? '2000-01-01';
         $dateTo    = $request->date_to   ?? now()->toDateString();
-        $userId    = $request->user_id   ?? null;
+        $userId    = $request->user_id ? Common::getIdFromHash($request->user_id) : null;
 
         // Sales (debit: increases balance owed by customer)
         $salesQuery = Order::select(
@@ -415,7 +416,7 @@ class AccountingController extends ApiBaseController
         $companyId = company()->id;
         $dateFrom  = $request->date_from ?? '2000-01-01';
         $dateTo    = $request->date_to   ?? now()->toDateString();
-        $userId    = $request->user_id   ?? null;
+        $userId    = $request->user_id ? Common::getIdFromHash($request->user_id) : null;
 
         // Purchases (credit: increases amount owed to supplier)
         $purchaseQuery = Order::select(

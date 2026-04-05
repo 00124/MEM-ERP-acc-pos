@@ -21,7 +21,7 @@
             <a-col :span="7">
                 <label class="block text-xs text-gray-500 mb-1">Supplier (optional — leave blank for all)</label>
                 <a-select v-model:value="filters.user_id" style="width:100%" show-search :filter-option="filterOption" placeholder="All Suppliers" allow-clear>
-                    <a-select-option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.name }}</a-select-option>
+                    <a-select-option v-for="s in suppliers" :key="s.xid" :value="s.xid">{{ s.name }}</a-select-option>
                 </a-select>
             </a-col>
             <a-col :span="5">
