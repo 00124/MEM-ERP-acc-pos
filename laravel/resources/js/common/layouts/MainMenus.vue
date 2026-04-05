@@ -20,20 +20,6 @@
                         <span>{{ $t("menu.dashboard") }}</span>
                 </a-menu-item>
 
-                <a-menu-item
-                        v-if="permsArray.includes('admin')"
-                        @click="
-                                () => {
-                                        menuSelected();
-                                        $router.push({ name: 'admin.ho_dashboard' });
-                                }
-                        "
-                        key="ho_dashboard"
-                >
-                        <BankOutlined />
-                        <span>HO Dashboard</span>
-                </a-menu-item>
-
                 <a-sub-menu
                         key="product_manager"
                         v-if="
@@ -359,6 +345,19 @@
                                         <span>{{ $t("menu.reports") }}</span>
                                 </span>
                         </template>
+                        <a-menu-item
+                                v-if="permsArray.includes('admin')"
+                                @click="
+                                        () => {
+                                                menuSelected();
+                                                $router.push({ name: 'admin.ho_dashboard' });
+                                        }
+                                "
+                                key="ho_dashboard"
+                        >
+                                <BankOutlined />
+                                HO Dashboard
+                        </a-menu-item>
                         <a-menu-item
                                 v-if="
                                         ((permsArray.includes('purchases_view') ||

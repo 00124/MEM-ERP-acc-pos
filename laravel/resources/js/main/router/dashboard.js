@@ -19,7 +19,7 @@ export default [
                 name: "admin.ho_dashboard",
                 meta: {
                     requireAuth: true,
-                    menuParent: "dashboard",
+                    menuParent: "reports",
                     menuKey: () => "ho_dashboard",
                 },
             },
