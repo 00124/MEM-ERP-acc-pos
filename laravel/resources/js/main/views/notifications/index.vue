@@ -288,10 +288,11 @@ export default {
             loading.value = true;
             try {
                 const res = await axiosAdmin.get("erp-notifications");
-                data.value = res;
-                if (res.counts?.low_stock > 0)      activeTab.value = "low_stock";
-                else if (res.counts?.high_due > 0)  activeTab.value = "high_due";
-                else                                 activeTab.value = "cash_transfers";
+                const d = res.data ?? res;
+                data.value = d;
+                if (d.counts?.low_stock > 0)      activeTab.value = "low_stock";
+                else if (d.counts?.high_due > 0)  activeTab.value = "high_due";
+                else                              activeTab.value = "cash_transfers";
             } catch (_) {
                 data.value = null;
             } finally {

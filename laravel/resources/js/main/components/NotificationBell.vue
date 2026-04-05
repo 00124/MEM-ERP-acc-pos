@@ -123,7 +123,7 @@ export default {
         const fetchCounts = async () => {
             try {
                 const res = await axiosAdmin.get("erp-notifications/counts");
-                Object.assign(counts, res);
+                Object.assign(counts, res.data ?? res);
             } catch (_) {}
         };
 
@@ -132,12 +132,13 @@ export default {
             loading.value = true;
             try {
                 const res = await axiosAdmin.get("erp-notifications");
+                const d = res.data ?? res;
                 Object.assign(alerts, {
-                    low_stock:      res.low_stock      ?? [],
-                    high_due:       res.high_due       ?? [],
-                    cash_transfers: res.cash_transfers ?? [],
+                    low_stock:      d.low_stock      ?? [],
+                    high_due:       d.high_due       ?? [],
+                    cash_transfers: d.cash_transfers ?? [],
                 });
-                Object.assign(counts, res.counts ?? {});
+                Object.assign(counts, d.counts ?? {});
                 loaded.value = true;
             } catch (_) {} finally {
                 loading.value = false;

@@ -39,7 +39,7 @@ class HoDashboardController extends ApiBaseController
 
     // ── Main endpoint ─────────────────────────────────────────────────────────
 
-    public function index(Request $request)
+    public function getData(Request $request)
     {
         $companyId          = company()->id;
         [$dateFrom, $dateTo] = $this->parseDates($request);

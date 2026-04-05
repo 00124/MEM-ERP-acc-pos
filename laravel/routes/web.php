@@ -112,7 +112,7 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::post('accounting/category-mappings/bulk', ['as' => 'api.accounting.category-mappings.bulk', 'uses' => 'AccountingController@categoryMappingBulk']);
 
         // Head Office Dashboard
-        ApiRoute::get('ho-dashboard', ['as' => 'api.ho.dashboard', 'uses' => 'HoDashboardController@index']);
+        ApiRoute::get('ho-dashboard', ['as' => 'api.ho.dashboard', 'uses' => 'HoDashboardController@getData']);
 
         // Imports
         ApiRoute::post('brands/import', ['as' => 'api.brands.import', 'uses' => 'BrandController@import']);

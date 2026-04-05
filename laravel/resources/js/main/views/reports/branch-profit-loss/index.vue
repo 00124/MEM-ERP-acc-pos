@@ -280,7 +280,7 @@ export default {
                 if (filters.start_date) params.append("start_date", filters.start_date.format("YYYY-MM-DD") + " 00:00:00");
                 if (filters.end_date)   params.append("end_date",   filters.end_date.format("YYYY-MM-DD")   + " 23:59:59");
                 const res = await axiosAdmin.get(`reports/branch-profit-loss?${params}`);
-                data.value = res;
+                data.value = res.data ?? res;
             } catch (e) {
                 data.value = null;
             } finally {
