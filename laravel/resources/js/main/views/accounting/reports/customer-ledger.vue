@@ -47,10 +47,11 @@
                     <p style="margin:0;color:#666">{{ formatDate(reportData.date_from) }} to {{ formatDate(reportData.date_to) }}</p>
                 </div>
 
-                <a-table :dataSource="reportData.rows" :columns="columns" :pagination="false" size="middle" :rowKey="(r) => r.date + '-' + r.reference + '-' + r.type" :scroll="{ x: 800 }">
+                <a-table :dataSource="tableRows" :columns="columns" :pagination="false" size="middle" :rowKey="(r) => r.date + '-' + r.reference + '-' + r.type" :scroll="{ x: 800 }" :rowClassName="(r) => r._is_opening ? 'ob-row' : ''">
                     <template #bodyCell="{ column, record }">
                         <template v-if="column.key === 'type'">
-                            <a-tag :color="typeColor(record.type)">{{ record.type }}</a-tag>
+                            <a-tag v-if="!record._is_opening" :color="typeColor(record.type)">{{ record.type }}</a-tag>
+                            <b v-else style="color:#6b7280;font-style:italic">Opening Balance</b>
                         </template>
                         <template v-if="column.key === 'debit'">
                             <span v-if="+record.debit !== 0" class="text-blue-600">{{ fmt(record.debit) }}</span>
@@ -69,8 +70,8 @@
                     <template #summary>
                         <a-table-summary-row>
                             <a-table-summary-cell :index="0" :col-span="3"><b>CLOSING BALANCE</b></a-table-summary-cell>
-                            <a-table-summary-cell :index="3" align="right"><b class="text-blue-600">{{ fmt(totalDebit) }}</b></a-table-summary-cell>
-                            <a-table-summary-cell :index="4" align="right"><b class="text-green-600">{{ fmt(totalCredit) }}</b></a-table-summary-cell>
+                            <a-table-summary-cell :index="3" align="right"><b class="text-blue-600">{{ fmt(openingBalance > 0 ? openingBalance + totalDebit : totalDebit) }}</b></a-table-summary-cell>
+                            <a-table-summary-cell :index="4" align="right"><b class="text-green-600">{{ fmt(openingBalance < 0 ? Math.abs(openingBalance) + totalCredit : totalCredit) }}</b></a-table-summary-cell>
                             <a-table-summary-cell :index="5" align="right">
                                 <b :class="closingBalance >= 0 ? 'text-red-600' : 'text-green-600'">
                                     {{ fmt(Math.abs(closingBalance)) }} {{ closingBalance >= 0 ? ' Receivable' : ' Advance' }}
@@ -101,7 +102,7 @@ export default defineComponent({
         const generated = ref(false);
         const customers = ref([]);
         const filters   = ref({ user_id: null, date_from: dayjs().startOf('year'), date_to: dayjs() });
-        const reportData = ref({ rows: [], customer: null, date_from: '', date_to: '' });
+        const reportData = ref({ rows: [], opening_balance: 0, customer: null, date_from: '', date_to: '' });
 
         const columns = [
             { title: 'Date',      dataIndex: 'date',      key: 'date',      width: 110 },
@@ -117,9 +118,23 @@ export default defineComponent({
         const filterOption = (input, option) => option.children?.()[0]?.children?.toLowerCase().includes(input.toLowerCase());
         const typeColor = (t) => ({ 'Sale': 'blue', 'Sales Return': 'orange', 'Payment Received': 'green' })[t] || 'default';
 
+        const openingBalance = computed(() => reportData.value.opening_balance ?? 0);
         const totalDebit  = computed(() => reportData.value.rows.reduce((s, r) => s + +r.debit, 0));
         const totalCredit = computed(() => reportData.value.rows.reduce((s, r) => s + +r.credit, 0));
-        const closingBalance = computed(() => totalDebit.value - totalCredit.value);
+        const closingBalance = computed(() => openingBalance.value + totalDebit.value - totalCredit.value);
+        const tableRows = computed(() => {
+            const ob = openingBalance.value;
+            const obRow = {
+                date: reportData.value.date_from,
+                reference: '—',
+                type: 'Opening Balance',
+                debit: ob > 0 ? ob : 0,
+                credit: ob < 0 ? Math.abs(ob) : 0,
+                running_balance: ob,
+                _is_opening: true,
+            };
+            return [obRow, ...reportData.value.rows];
+        });
 
         const loadCustomers = async () => {
             const res = await axiosAdmin.get('customers?limit=10000');
@@ -143,7 +158,7 @@ export default defineComponent({
 
         const print = () => window.print();
         onMounted(loadCustomers);
-        return { loading, generated, customers, filters, reportData, columns, fmt, formatDate, filterOption, typeColor, totalDebit, totalCredit, closingBalance, load, print };
+        return { loading, generated, customers, filters, reportData, tableRows, columns, fmt, formatDate, filterOption, typeColor, openingBalance, totalDebit, totalCredit, closingBalance, load, print };
     }
 });
 </script>

@@ -344,6 +344,30 @@ class AccountingController extends ApiBaseController
         $dateTo    = $request->date_to   ?? now()->toDateString();
         $userId    = $request->user_id ? Common::getIdFromHash($request->user_id) : null;
 
+        // ── Opening Balance (all transactions BEFORE dateFrom) ───────────────
+        $obSalesDebit = Order::where('company_id', $companyId)
+            ->whereIn('order_type', ['sales'])
+            ->where('cancelled', 0)
+            ->where('order_date', '<', $dateFrom)
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->sum('total');
+
+        $obReturnCredit = Order::where('company_id', $companyId)
+            ->whereIn('order_type', ['sales-returns'])
+            ->where('cancelled', 0)
+            ->where('order_date', '<', $dateFrom)
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->sum('total');
+
+        $obPaymentCredit = Payment::where('company_id', $companyId)
+            ->where('payment_type', 'in')
+            ->where(DB::raw('DATE(date)'), '<', $dateFrom)
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->sum('amount');
+
+        $openingBalance = $obSalesDebit - $obReturnCredit - $obPaymentCredit;
+
+        // ── Period Transactions ──────────────────────────────────────────────
         // Sales (debit: increases balance owed by customer)
         $salesQuery = Order::select(
                 'order_date as date',
@@ -355,6 +379,7 @@ class AccountingController extends ApiBaseController
             )
             ->where('company_id', $companyId)
             ->whereIn('order_type', ['sales'])
+            ->where('cancelled', 0)
             ->whereBetween('order_date', [$dateFrom, $dateTo]);
 
         // Sales Returns (credit: reduces balance owed)
@@ -368,6 +393,7 @@ class AccountingController extends ApiBaseController
             )
             ->where('company_id', $companyId)
             ->whereIn('order_type', ['sales-returns'])
+            ->where('cancelled', 0)
             ->whereBetween('order_date', [$dateFrom, $dateTo]);
 
         // Payments in (credit: customer paid, reduces balance owed)
@@ -393,7 +419,7 @@ class AccountingController extends ApiBaseController
             ->orderBy('date')->orderBy('reference')
             ->get();
 
-        $runningBalance = 0;
+        $runningBalance = $openingBalance;
         foreach ($rows as $row) {
             $runningBalance += ($row->debit - $row->credit);
             $row->running_balance = $runningBalance;
@@ -402,10 +428,11 @@ class AccountingController extends ApiBaseController
         $customer = $userId ? User::find($userId) : null;
 
         return $this->sendResponse([
-            'rows'      => $rows,
-            'customer'  => $customer,
-            'date_from' => $dateFrom,
-            'date_to'   => $dateTo,
+            'rows'            => $rows,
+            'opening_balance' => $openingBalance,
+            'customer'        => $customer,
+            'date_from'       => $dateFrom,
+            'date_to'         => $dateTo,
         ], '');
     }
 
@@ -418,6 +445,30 @@ class AccountingController extends ApiBaseController
         $dateTo    = $request->date_to   ?? now()->toDateString();
         $userId    = $request->user_id ? Common::getIdFromHash($request->user_id) : null;
 
+        // ── Opening Balance (all transactions BEFORE dateFrom) ───────────────
+        $obPurchaseCredit = Order::where('company_id', $companyId)
+            ->whereIn('order_type', ['purchases', 'grn'])
+            ->where('cancelled', 0)
+            ->where('order_date', '<', $dateFrom)
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->sum('total');
+
+        $obReturnDebit = Order::where('company_id', $companyId)
+            ->whereIn('order_type', ['purchase-returns'])
+            ->where('cancelled', 0)
+            ->where('order_date', '<', $dateFrom)
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->sum('total');
+
+        $obPaymentDebit = Payment::where('company_id', $companyId)
+            ->where('payment_type', 'out')
+            ->where(DB::raw('DATE(date)'), '<', $dateFrom)
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->sum('amount');
+
+        $openingBalance = $obPurchaseCredit - $obReturnDebit - $obPaymentDebit;
+
+        // ── Period Transactions ──────────────────────────────────────────────
         // Purchases (credit: increases amount owed to supplier)
         $purchaseQuery = Order::select(
                 'order_date as date',
@@ -429,6 +480,7 @@ class AccountingController extends ApiBaseController
             )
             ->where('company_id', $companyId)
             ->whereIn('order_type', ['purchases', 'grn'])
+            ->where('cancelled', 0)
             ->whereBetween('order_date', [$dateFrom, $dateTo]);
 
         // Purchase Returns (debit: reduces amount owed to supplier)
@@ -442,6 +494,7 @@ class AccountingController extends ApiBaseController
             )
             ->where('company_id', $companyId)
             ->whereIn('order_type', ['purchase-returns'])
+            ->where('cancelled', 0)
             ->whereBetween('order_date', [$dateFrom, $dateTo]);
 
         // Payments out (debit: we paid supplier, reduces balance owed)
@@ -467,7 +520,7 @@ class AccountingController extends ApiBaseController
             ->orderBy('date')->orderBy('reference')
             ->get();
 
-        $runningBalance = 0;
+        $runningBalance = $openingBalance;
         foreach ($rows as $row) {
             $runningBalance += ($row->credit - $row->debit);
             $row->running_balance = $runningBalance;
@@ -476,10 +529,11 @@ class AccountingController extends ApiBaseController
         $supplier = $userId ? User::find($userId) : null;
 
         return $this->sendResponse([
-            'rows'      => $rows,
-            'supplier'  => $supplier,
-            'date_from' => $dateFrom,
-            'date_to'   => $dateTo,
+            'rows'            => $rows,
+            'opening_balance' => $openingBalance,
+            'supplier'        => $supplier,
+            'date_from'       => $dateFrom,
+            'date_to'         => $dateTo,
         ], '');
     }
 
