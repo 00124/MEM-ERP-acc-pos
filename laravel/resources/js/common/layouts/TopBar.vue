@@ -47,6 +47,9 @@
                             <ChangeWarehouse />
                             <a-divider type="vertical" />
                         </template>
+                        <NotificationBell v-if="permsArray.includes('admin')" />
+                        <a-divider v-if="permsArray.includes('admin')" type="vertical" />
+
                         <a-dropdown
                             :placement="appSetting.rtl ? 'bottomLeft' : 'bottomRight'"
                         >
@@ -106,6 +109,7 @@ import MenuMode from "./MenuMode.vue";
 import ChangeWarehouse from "./ChangeWarehouse.vue";
 import AffixButton from "./AffixButton.vue";
 import TopbarIconVue from "../../main/views/hrm/topbarIcon.vue";
+import NotificationBell from "../../main/components/NotificationBell.vue";
 
 export default {
     components: {
@@ -117,6 +121,7 @@ export default {
         AffixButton,
         ShoppingCartOutlined,
         TopbarIconVue,
+        NotificationBell,
     },
     setup(props, { emit }) {
         const {

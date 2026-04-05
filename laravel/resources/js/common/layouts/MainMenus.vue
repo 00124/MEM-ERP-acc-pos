@@ -291,6 +291,15 @@
                         <span>{{ $t('menu.cash_transfers') }}</span>
                 </a-menu-item>
 
+                <a-menu-item
+                        key="notifications"
+                        v-if="permsArray.includes('admin')"
+                        @click="() => { menuSelected(); $router.push({ name: 'admin.notifications.index' }); }"
+                >
+                        <BellOutlined />
+                        <span>{{ $t('menu.notifications') }}</span>
+                </a-menu-item>
+
                 <a-sub-menu
                         v-if="
                                 permsArray.includes('users_view') ||
@@ -491,6 +500,7 @@ import {
         CalculatorOutlined,
         BankOutlined,
         TransactionOutlined,
+        BellOutlined,
 } from "@ant-design/icons-vue";
 import { PerfectScrollbar } from "vue3-perfect-scrollbar";
 import common from "../../common/composable/common";
@@ -516,6 +526,7 @@ export default defineComponent({
                 CalculatorOutlined,
                 BankOutlined,
                 TransactionOutlined,
+                BellOutlined,
         },
         setup(props, { emit }) {
                 const { appSetting, user, permsArray, appModules, cssSettings } = common();
