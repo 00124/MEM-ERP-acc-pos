@@ -47,7 +47,7 @@
                     <p style="margin:0;color:#666">{{ formatDate(reportData.date_from) }} to {{ formatDate(reportData.date_to) }}</p>
                 </div>
 
-                <a-table :dataSource="reportData.rows" :columns="columns" :pagination="false" size="middle" rowKey="(r,i) => i" :scroll="{ x: 800 }">
+                <a-table :dataSource="reportData.rows" :columns="columns" :pagination="false" size="middle" :rowKey="(r) => r.date + '-' + r.reference + '-' + r.type" :scroll="{ x: 800 }">
                     <template #bodyCell="{ column, record }">
                         <template v-if="column.key === 'type'">
                             <a-tag :color="typeColor(record.type)">{{ record.type }}</a-tag>
@@ -122,8 +122,8 @@ export default defineComponent({
         const closingBalance = computed(() => totalDebit.value - totalCredit.value);
 
         const loadCustomers = async () => {
-            const res = await axiosAdmin.get('users?user_type=customer&limit=500');
-            customers.value = res.data || [];
+            const res = await axiosAdmin.get('customers?limit=10000');
+            customers.value = Array.isArray(res.data) ? res.data : (res.data?.data || []);
         };
 
         const load = async () => {
