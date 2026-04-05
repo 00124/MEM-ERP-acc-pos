@@ -10,6 +10,8 @@ use App\Models\Warehouse;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Examyou\RestAPI\ApiResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ReportController extends ApiBaseController
 {
@@ -350,5 +352,69 @@ class ReportController extends ApiBaseController
             'profit'           => (float) $profit,
             'payment_received' => (float) $paymentReceived,
         ];
+    }
+
+    // ── Dead Stock Report ─────────────────────────────────────────────────────
+    //
+    // Products that have current_stock > 0 but haven't been sold
+    // in at least $threshold days (default 60). Ordered worst-first.
+
+    public function deadStock(Request $request)
+    {
+        $companyId   = company()->id;
+        $threshold   = (int) ($request->days ?? 60);
+        $warehouseId = $request->warehouse_id
+            ? \App\Classes\Common::getIdFromHash($request->warehouse_id)
+            : null;
+
+        $warehouseClause = $warehouseId ? "AND pd.warehouse_id = ?" : "";
+        $bindings = array_filter(
+            [$companyId, $warehouseId, $threshold],
+            fn($v) => $v !== null
+        );
+
+        $rows = DB::select("
+            SELECT
+                p.name                                          AS product_name,
+                p.item_code,
+                COALESCE(c.name, '—')                          AS category_name,
+                w.name                                          AS warehouse_name,
+                pd.current_stock,
+                ROUND(pd.purchase_price, 2)                    AS purchase_price,
+                ROUND(pd.current_stock * pd.purchase_price, 2) AS stock_value,
+                DATE(MAX(o.order_date))                        AS last_sale_date,
+                CASE
+                    WHEN MAX(o.order_date) IS NULL THEN NULL
+                    ELSE DATEDIFF(CURDATE(), MAX(o.order_date))
+                END                                            AS days_inactive
+            FROM product_details pd
+            JOIN products p ON p.id = pd.product_id AND p.company_id = ?
+            LEFT JOIN categories c ON c.id = p.category_id
+            LEFT JOIN warehouses w ON w.id = pd.warehouse_id
+            LEFT JOIN order_items oi ON oi.product_id = pd.product_id
+                AND oi.warehouse_id = pd.warehouse_id
+            LEFT JOIN orders o ON o.id = oi.order_id
+                AND o.order_type = 'sales'
+                AND o.cancelled = 0
+            WHERE pd.current_stock > 0
+            $warehouseClause
+            GROUP BY
+                pd.product_id, pd.warehouse_id,
+                p.name, p.item_code, c.name, w.name,
+                pd.current_stock, pd.purchase_price
+            HAVING last_sale_date IS NULL OR days_inactive >= ?
+            ORDER BY days_inactive DESC, stock_value DESC
+        ", array_values($bindings));
+
+        $totalValue = array_sum(array_column($rows, 'stock_value'));
+        $totalQty   = array_sum(array_column($rows, 'current_stock'));
+
+        return ApiResponse::make('Dead Stock Report', [
+            'rows'        => $rows,
+            'total_value' => round($totalValue, 2),
+            'total_qty'   => $totalQty,
+            'threshold'   => $threshold,
+            'count'       => count($rows),
+        ]);
     }
 }

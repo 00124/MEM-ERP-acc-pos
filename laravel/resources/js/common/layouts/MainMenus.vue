@@ -452,6 +452,17 @@
                         >
                                 {{ $t("menu.branch_profit_loss") }}
                         </a-menu-item>
+                        <a-menu-item
+                                @click="
+                                        () => {
+                                                menuSelected();
+                                                $router.push({ name: 'admin.reports.dead_stock.index' });
+                                        }
+                                "
+                                key="dead_stock"
+                        >
+                                Dead Stock
+                        </a-menu-item>
                 </a-sub-menu>
 
                 <component

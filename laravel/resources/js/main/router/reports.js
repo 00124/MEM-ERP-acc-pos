@@ -124,6 +124,17 @@ export default [
                     permission: "admin",
                 },
             },
+            {
+                path: "dead-stock",
+                component: () =>
+                    import("../views/reports/dead-stock/index.vue"),
+                name: "admin.reports.dead_stock.index",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "reports",
+                    menuKey: "dead_stock",
+                },
+            },
         ],
     },
 ];
