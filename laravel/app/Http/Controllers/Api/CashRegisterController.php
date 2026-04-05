@@ -162,7 +162,9 @@ class CashRegisterController extends ApiBaseController
             $expenseBreakdown = $this->expenseBreakdown($register);
             $expectedClosing  = $register->opening_balance
                 + $register->total_received
-                - $register->total_expense;
+                + ($register->total_cash_in ?? 0)
+                - $register->total_expense
+                - ($register->total_cash_out ?? 0);
         }
 
         return ApiResponse::make('Cash Register Status', [
@@ -204,6 +206,8 @@ class CashRegisterController extends ApiBaseController
         $register->total_sales     = 0;
         $register->total_received  = 0;
         $register->total_expense   = 0;
+        $register->total_cash_in   = 0;
+        $register->total_cash_out  = 0;
         $register->status          = 'open';
         $register->opened_at       = now();
         $register->notes           = $request->input('notes', null);
@@ -227,7 +231,9 @@ class CashRegisterController extends ApiBaseController
 
         $expectedClosing = $register->opening_balance
             + $register->total_received
-            - $register->total_expense;
+            + ($register->total_cash_in ?? 0)
+            - $register->total_expense
+            - ($register->total_cash_out ?? 0);
 
         $difference = $actualCash - $expectedClosing;
 
@@ -280,7 +286,9 @@ class CashRegisterController extends ApiBaseController
 
         $expectedClosing = $register->opening_balance
             + $register->total_received
-            - $register->total_expense;
+            + ($register->total_cash_in ?? 0)
+            - $register->total_expense
+            - ($register->total_cash_out ?? 0);
 
         $difference = $register->actual_cash !== null
             ? $register->actual_cash - $expectedClosing

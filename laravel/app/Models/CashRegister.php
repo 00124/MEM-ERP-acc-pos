@@ -24,6 +24,8 @@ class CashRegister extends BaseModel
         'total_sales'     => 'double',
         'total_received'  => 'double',
         'total_expense'   => 'double',
+        'total_cash_in'   => 'double',
+        'total_cash_out'  => 'double',
         'actual_cash'     => 'double',
         'opened_at'       => 'datetime',
         'closed_at'       => 'datetime',

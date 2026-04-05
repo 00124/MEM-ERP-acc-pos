@@ -158,6 +158,8 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::get('grn/purchase-order/{id}', ['as' => 'api.grn.purchase-order', 'uses' => 'GrnController@purchaseOrderForGrn']);
         ApiRoute::resource('purchase-returns', 'PurchaseReturnsController', $options);
         ApiRoute::resource('stock-transfers', 'StockTransferController', $options);
+        ApiRoute::resource('cash-transfers', 'CashTransferController', $options);
+        ApiRoute::get('cash-transfers-summary', ['as' => 'api.cash-transfers.summary', 'uses' => 'CashTransferController@summary']);
         ApiRoute::resource('sales', 'SalesController', $options);
         ApiRoute::resource('sales-returns', 'SalesReturnsController', $options);
         ApiRoute::get('verified-email', ['as' => 'api.settings.verified-email', 'uses' => 'AuthController@getVerfiedEmailSetting']);
