@@ -20,6 +20,20 @@
                         <span>{{ $t("menu.dashboard") }}</span>
                 </a-menu-item>
 
+                <a-menu-item
+                        v-if="permsArray.includes('admin')"
+                        @click="
+                                () => {
+                                        menuSelected();
+                                        $router.push({ name: 'admin.ho_dashboard' });
+                                }
+                        "
+                        key="ho_dashboard"
+                >
+                        <BankOutlined />
+                        <span>HO Dashboard</span>
+                </a-menu-item>
+
                 <a-sub-menu
                         key="product_manager"
                         v-if="
@@ -442,6 +456,7 @@ import {
         ShopOutlined,
         BarChartOutlined,
         CalculatorOutlined,
+        BankOutlined,
 } from "@ant-design/icons-vue";
 import { PerfectScrollbar } from "vue3-perfect-scrollbar";
 import common from "../../common/composable/common";
@@ -465,6 +480,7 @@ export default defineComponent({
                 ShopOutlined,
                 BarChartOutlined,
                 CalculatorOutlined,
+                BankOutlined,
         },
         setup(props, { emit }) {
                 const { appSetting, user, permsArray, appModules, cssSettings } = common();
