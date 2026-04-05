@@ -108,6 +108,9 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::put('accounting/category-mappings/{id}', ['as' => 'api.accounting.category-mappings.update', 'uses' => 'AccountingController@categoryMappingUpdate']);
         ApiRoute::post('accounting/category-mappings/bulk', ['as' => 'api.accounting.category-mappings.bulk', 'uses' => 'AccountingController@categoryMappingBulk']);
 
+        // Head Office Dashboard
+        ApiRoute::get('ho-dashboard', ['as' => 'api.ho.dashboard', 'uses' => 'HoDashboardController@index']);
+
         // Imports
         ApiRoute::post('brands/import', ['as' => 'api.brands.import', 'uses' => 'BrandController@import']);
         ApiRoute::post('categories/import', ['as' => 'api.categories.import', 'uses' => 'CategoryController@import']);
