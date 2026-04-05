@@ -24,17 +24,17 @@ class HoDashboardController extends ApiBaseController
 
     private function salesBaseQuery(int $companyId, string $from, string $to)
     {
-        return Order::where('company_id', $companyId)
-            ->where('order_type', 'sales')
-            ->where('cancelled', 0)
-            ->whereBetween(DB::raw('DATE(order_date)'), [$from, $to]);
+        return Order::where('orders.company_id', $companyId)
+            ->where('orders.order_type', 'sales')
+            ->where('orders.cancelled', 0)
+            ->whereBetween(DB::raw('DATE(orders.order_date)'), [$from, $to]);
     }
 
     private function paymentsBaseQuery(int $companyId, string $from, string $to)
     {
-        return Payment::where('company_id', $companyId)
-            ->where('payment_type', 'in')
-            ->whereBetween(DB::raw('DATE(date)'), [$from, $to]);
+        return Payment::where('payments.company_id', $companyId)
+            ->where('payments.payment_type', 'in')
+            ->whereBetween(DB::raw('DATE(payments.date)'), [$from, $to]);
     }
 
     // ── Main endpoint ─────────────────────────────────────────────────────────
