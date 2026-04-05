@@ -35,6 +35,7 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
 
         // Reports
         ApiRoute::post('reports/profit-loss', ['as' => 'api.reports.profit-loss', 'uses' => 'ReportController@profitLoss']);
+        ApiRoute::get('reports/branch-profit-loss', ['as' => 'api.reports.branch-profit-loss', 'uses' => 'ReportController@branchProfitLoss']);
 
         // Warehouse History
         ApiRoute::resource('warehouse-history', 'WarehouseHistoryController', ['as' => 'api', 'only' => ['index']]);

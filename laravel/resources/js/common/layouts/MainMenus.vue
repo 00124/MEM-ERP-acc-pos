@@ -431,6 +431,18 @@
                         >
                                 {{ $t("menu.users_reports") }}
                         </a-menu-item>
+                        <a-menu-item
+                                v-if="permsArray.includes('admin')"
+                                @click="
+                                        () => {
+                                                menuSelected();
+                                                $router.push({ name: 'admin.reports.branch_profit_loss.index' });
+                                        }
+                                "
+                                key="branch_profit_loss"
+                        >
+                                {{ $t("menu.branch_profit_loss") }}
+                        </a-menu-item>
                 </a-sub-menu>
 
                 <component

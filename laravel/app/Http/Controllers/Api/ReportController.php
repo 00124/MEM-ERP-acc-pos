@@ -6,6 +6,7 @@ use App\Http\Controllers\ApiBaseController;
 use App\Models\Expense;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\Warehouse;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Examyou\RestAPI\ApiResponse;
@@ -240,6 +241,114 @@ class ReportController extends ApiBaseController
             'payment_received' => $paymentReceived,
             'payment_sent' => $paymentSent,
             'profit_by_payment' => $profitByPayment,
+        ];
+    }
+
+    // ─── Branch-wise P&L ──────────────────────────────────────────────────────
+
+    public function branchProfitLoss()
+    {
+        $request   = request();
+        $company   = company();
+        $startDate = $request->start_date ?? date('Y-01-01') . ' 00:00:00';
+        $endDate   = $request->end_date   ?? now()->format('Y-m-d') . ' 23:59:59';
+
+        $warehouses = Warehouse::where('company_id', $company->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'phone']);
+
+        $branches = [];
+        $consolidated = [
+            'sales'            => 0,
+            'purchases'        => 0,
+            'sales_returns'    => 0,
+            'purchase_returns' => 0,
+            'expenses'         => 0,
+            'profit'           => 0,
+            'payment_received' => 0,
+        ];
+
+        foreach ($warehouses as $warehouse) {
+            $pl = $this->getPLForWarehouse($warehouse->id, $startDate, $endDate);
+
+            $consolidated['sales']            += $pl['sales'];
+            $consolidated['purchases']        += $pl['purchases'];
+            $consolidated['sales_returns']    += $pl['sales_returns'];
+            $consolidated['purchase_returns'] += $pl['purchase_returns'];
+            $consolidated['expenses']         += $pl['expenses'];
+            $consolidated['profit']           += $pl['profit'];
+            $consolidated['payment_received'] += $pl['payment_received'];
+
+            $branches[] = [
+                'id'     => $warehouse->id,
+                'name'   => $warehouse->name,
+                'email'  => $warehouse->email,
+                'phone'  => $warehouse->phone,
+                'pl'     => $pl,
+            ];
+        }
+
+        return ApiResponse::make('Branch Profit & Loss', [
+            'branches'     => $branches,
+            'consolidated' => $consolidated,
+            'start_date'   => $startDate,
+            'end_date'     => $endDate,
+        ]);
+    }
+
+    private function getPLForWarehouse(int $warehouseId, $startDate, $endDate): array
+    {
+        $sales = Order::where('order_type', 'sales')
+            ->where('warehouse_id', $warehouseId)
+            ->where('cancelled', 0)
+            ->whereBetween('order_date', [$startDate, $endDate])
+            ->sum('total');
+
+        $purchases = Order::where('order_type', 'purchases')
+            ->where('warehouse_id', $warehouseId)
+            ->where('cancelled', 0)
+            ->whereBetween('order_date', [$startDate, $endDate])
+            ->sum('total');
+
+        $salesReturns = Order::where('order_type', 'sales-returns')
+            ->where('warehouse_id', $warehouseId)
+            ->where('cancelled', 0)
+            ->whereBetween('order_date', [$startDate, $endDate])
+            ->sum('total');
+
+        $purchaseReturns = Order::where('order_type', 'purchase-returns')
+            ->where('warehouse_id', $warehouseId)
+            ->where('cancelled', 0)
+            ->whereBetween('order_date', [$startDate, $endDate])
+            ->sum('total');
+
+        $expenses = Expense::where('warehouse_id', $warehouseId)
+            ->whereBetween('date', [
+                Carbon::parse($startDate)->toDateString(),
+                Carbon::parse($endDate)->toDateString(),
+            ])
+            ->sum('amount');
+
+        $paymentReceived = Payment::where('payment_type', 'in')
+            ->where('warehouse_id', $warehouseId)
+            ->whereBetween('date', [
+                Carbon::parse($startDate)->toDateString(),
+                Carbon::parse($endDate)->toDateString(),
+            ])
+            ->sum('amount');
+
+        $netRevenue = $sales - $salesReturns + $purchaseReturns;
+        $profit     = $netRevenue - $purchases - $expenses;
+
+        return [
+            'sales'            => (float) $sales,
+            'purchases'        => (float) $purchases,
+            'sales_returns'    => (float) $salesReturns,
+            'purchase_returns' => (float) $purchaseReturns,
+            'expenses'         => (float) $expenses,
+            'net_revenue'      => (float) $netRevenue,
+            'profit'           => (float) $profit,
+            'payment_received' => (float) $paymentReceived,
         ];
     }
 }

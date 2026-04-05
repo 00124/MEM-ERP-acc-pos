@@ -112,6 +112,18 @@ export default [
                     menuKey: "profit_loss",
                 },
             },
+            {
+                path: "branch-profit-loss",
+                component: () =>
+                    import("../views/reports/branch-profit-loss/index.vue"),
+                name: "admin.reports.branch_profit_loss.index",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "reports",
+                    menuKey: "branch_profit_loss",
+                    permission: "admin",
+                },
+            },
         ],
     },
 ];
