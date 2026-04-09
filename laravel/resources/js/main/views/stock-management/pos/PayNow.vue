@@ -426,6 +426,18 @@ export default {
                     allPaymentRecords.value = [];
                     showSplitForm.value = false;
                     selectedSalesmanXid.value = undefined;
+
+                    // ── JE Warning Notification ─────────────────────────
+                    if (res.je_warnings && res.je_warnings.length > 0) {
+                        const msgs = res.je_warnings.join('\n• ');
+                        notification.warning({
+                            message: '⚠ Accounting Alert',
+                            description: '• ' + msgs,
+                            duration: 0,
+                            style: { whiteSpace: 'pre-line', maxWidth: '480px' },
+                        });
+                    }
+
                     emit("success", res.order);
                 },
             });

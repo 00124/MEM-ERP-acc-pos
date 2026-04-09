@@ -1,0 +1,86 @@
+Hi,
+
+Based on the full review of our Chart of Accounts and Journal Entry system, please proceed to **fix all identified issues and ensure the accounting module is fully accurate and production-ready**.
+
+Kindly implement the following corrections:
+
+🔴 1. Fix COGS Posting (Critical)
+
+* Ensure all products have a valid `purchase_price` (cost price).
+* Do NOT allow sales without cost.
+* Make COGS Journal Entry mandatory:
+  DR COGS
+  CR Inventory
+* Remove silent skipping when cost = 0 — instead log error or block transaction.
+
+🔴 2. Stop Silent Journal Entry Failures
+
+* If Debit ≠ Credit OR any mapping is missing:
+  ❌ Do NOT skip entry silently
+  ✅ Throw error OR show UI alert
+* Ensure every financial transaction has a corresponding JE.
+
+🔴 3. Remove / Control Fallback Accounts
+
+* Do not allow automatic fallback to default accounts silently.
+* If category mapping is missing:
+
+  * Show error OR block transaction
+  * Log as critical issue
+
+🟠 4. Fix Sales Return Logic
+
+* If original sale was CASH:
+  CR Cash
+* If CREDIT:
+  CR Accounts Receivable
+* Ensure correct reversal logic is applied dynamically.
+
+🟠 5. Enforce Purchase Flow
+
+* Inventory should NOT increase without Purchase/GRN entry.
+* Ensure:
+  DR Inventory
+  CR Accounts Payable
+
+🟠 6. Opening Balance Setup
+
+* Add support for posting opening balance entry:
+  DR Cash / Inventory
+  CR Owner Capital
+
+🟡 7. Expense Posting Enablement
+
+* Ensure expense accounts can be used via:
+
+  * Manual Journal Entry
+  * Or Expense module (if available)
+
+🟡 8. Improve Data Integrity
+
+* Add proper foreign keys:
+
+  * journal_entries → orders / purchases / payments
+* Avoid relying only on reference text fields.
+
+🟡 9. Logging & Monitoring
+
+* Upgrade logs:
+
+  * warning → error for critical failures
+* Add UI notification for failed JE
+* Maintain audit trail for manual entries
+
+📌 Expected Outcome:
+
+* All transactions must generate valid Journal Entries
+* Profit & Loss must include COGS and Expenses
+* Balance Sheet must reflect Inventory, Payables, and Equity correctly
+
+Please confirm once:
+
+* Fixes are deployed
+* Test cases validated (Sale, Purchase, Return, Payment)
+* Updated sample Journal Entries shared
+
+Thanks.

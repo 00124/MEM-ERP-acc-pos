@@ -3,6 +3,7 @@
         <template #header>
             <a-page-header title="Journal Entries" class="p-0">
                 <template #extra>
+                    <a-button @click="openObModal" style="border-color:#8b5cf6;color:#8b5cf6"><BankOutlined /> Opening Balance</a-button>
                     <a-button type="primary" @click="openAddModal"><PlusOutlined /> New Journal Entry</a-button>
                 </template>
             </a-page-header>
@@ -15,6 +16,40 @@
             </a-breadcrumb>
         </template>
     </AdminPageHeader>
+
+    <!-- ── JE Health Check Banner ─────────────────────────────────── -->
+    <div v-if="health" class="je-health-bar">
+        <div class="je-health-stat">
+            <div class="je-health-val">{{ health.total_entries }}</div>
+            <div class="je-health-lbl">Total Entries</div>
+        </div>
+        <div class="je-health-stat">
+            <div class="je-health-val" style="color:#16a34a">{{ health.balanced }}</div>
+            <div class="je-health-lbl">Balanced ✓</div>
+        </div>
+        <div class="je-health-stat" :class="health.imbalanced?.length ? 'je-health-danger' : ''">
+            <div class="je-health-val" :style="health.imbalanced?.length ? 'color:#dc2626' : 'color:#16a34a'">
+                {{ health.imbalanced?.length ?? 0 }}
+            </div>
+            <div class="je-health-lbl">Imbalanced ⚠</div>
+        </div>
+        <div class="je-health-divider"></div>
+        <div class="je-health-stat">
+            <div class="je-health-val" :style="health.je_coverage_pct < 100 ? 'color:#f59e0b' : 'color:#16a34a'">
+                {{ health.je_coverage_pct }}%
+            </div>
+            <div class="je-health-lbl">JE Coverage ({{ health.orders_with_je }}/{{ health.orders_total }} orders)</div>
+        </div>
+        <div class="je-health-stat">
+            <div class="je-health-val" :style="health.cogs_entries === 0 ? 'color:#dc2626' : 'color:#16a34a'">
+                {{ health.cogs_entries }}
+            </div>
+            <div class="je-health-lbl">COGS Entries {{ health.cogs_entries === 0 ? '❌' : '✓' }}</div>
+        </div>
+        <div v-if="health.imbalanced?.length" class="je-health-alert">
+            ⚠ Imbalanced: {{ health.imbalanced.map(e => e.entry_number).join(', ') }}
+        </div>
+    </div>
 
     <a-card class="page-content-container">
         <!-- Filters -->
@@ -231,6 +266,40 @@
             </a-table>
         </a-form>
     </a-modal>
+
+    <!-- ── Opening Balance Modal ──────────────────────────────────── -->
+    <a-modal v-model:open="obModalVisible" title="Post Opening Balance" width="760px"
+             okText="Post Opening Balance" :confirmLoading="obSaving" @ok="saveOpeningBalance">
+        <a-alert type="info" show-icon style="margin-bottom:16px"
+            message="Opening balances create a special journal entry dated at the start of your accounting period. Debits and Credits must balance." />
+
+        <a-form layout="vertical">
+            <a-form-item label="As of Date">
+                <a-date-picker v-model:value="obForm.as_of_date" style="width:220px" />
+            </a-form-item>
+
+            <div style="font-weight:700;color:#475569;margin-bottom:8px;font-size:13px;text-transform:uppercase;letter-spacing:.5px;">Account Balances</div>
+
+            <div v-for="(line, idx) in obForm.lines" :key="idx" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+                <a-select v-model:value="line.account_id" show-search :filter-option="filterAccount" placeholder="Select account"
+                    style="flex:1" :options="allAccounts.map(a => ({ value: a.id, label: (a.code ? a.code + ' — ' : '') + a.name }))" />
+                <a-select v-model:value="line.balance_type" style="width:100px">
+                    <a-select-option value="debit">Debit</a-select-option>
+                    <a-select-option value="credit">Credit</a-select-option>
+                </a-select>
+                <a-input-number v-model:value="line.amount" :min="0" :precision="2" style="width:140px" placeholder="Amount" />
+                <a-button type="text" danger @click="removeObLine(idx)" :disabled="obForm.lines.length <= 1"><DeleteOutlined /></a-button>
+            </div>
+
+            <a-button type="dashed" block @click="addObLine" style="margin-top:4px"><PlusOutlined /> Add Account</a-button>
+
+            <!-- Running totals -->
+            <div style="display:flex;justify-content:flex-end;gap:24px;margin-top:14px;font-size:13px;font-weight:700;">
+                <span style="color:#2563eb">Debit Total: {{ obForm.lines.filter(l=>l.balance_type==='debit').reduce((s,l)=>s+(+l.amount||0),0).toLocaleString('en-PK',{minimumFractionDigits:2}) }}</span>
+                <span style="color:#16a34a">Credit Total: {{ obForm.lines.filter(l=>l.balance_type==='credit').reduce((s,l)=>s+(+l.amount||0),0).toLocaleString('en-PK',{minimumFractionDigits:2}) }}</span>
+            </div>
+        </a-form>
+    </a-modal>
 </template>
 
 <script>
@@ -238,7 +307,8 @@ import { defineComponent, ref, computed, onMounted, h } from 'vue';
 import {
     PlusOutlined, DeleteOutlined, MinusCircleOutlined,
     ShoppingOutlined, AccountBookOutlined, FileTextOutlined,
-    CalendarOutlined, LinkOutlined, CheckCircleOutlined, DownOutlined
+    CalendarOutlined, LinkOutlined, CheckCircleOutlined, DownOutlined,
+    BankOutlined
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 import AdminPageHeader from '../../../../common/layouts/AdminPageHeader.vue';
@@ -249,7 +319,8 @@ export default defineComponent({
         AdminPageHeader,
         PlusOutlined, DeleteOutlined, MinusCircleOutlined,
         ShoppingOutlined, AccountBookOutlined, FileTextOutlined,
-        CalendarOutlined, LinkOutlined, CheckCircleOutlined, DownOutlined
+        CalendarOutlined, LinkOutlined, CheckCircleOutlined, DownOutlined,
+        BankOutlined
     },
     setup() {
         const axiosAdmin = window.axiosAdmin;
@@ -260,6 +331,57 @@ export default defineComponent({
         const dateRange = ref(null);
         const pagination = ref({ current: 1, pageSize: 20, total: 0 });
         const addModalVisible = ref(false);
+
+        // ── JE Health ────────────────────────────────────────────────
+        const health = ref(null);
+        const loadHealth = async () => {
+            try {
+                const res = await axiosAdmin.get('accounting/je-health');
+                health.value = res.data;
+            } catch (_) { /* non-critical */ }
+        };
+
+        // ── Opening Balance ──────────────────────────────────────────
+        const obModalVisible = ref(false);
+        const obSaving = ref(false);
+        const obForm = ref({ as_of_date: dayjs(), lines: [] });
+
+        const addObLine = () => obForm.value.lines.push({ account_id: null, balance_type: 'debit', amount: 0 });
+        const removeObLine = (i) => obForm.value.lines.splice(i, 1);
+
+        const openObModal = () => {
+            obForm.value = {
+                as_of_date: dayjs(),
+                lines: [
+                    { account_id: null, balance_type: 'debit', amount: 0 },
+                    { account_id: null, balance_type: 'credit', amount: 0 },
+                ],
+            };
+            obModalVisible.value = true;
+        };
+
+        const saveOpeningBalance = async () => {
+            const validLines = obForm.value.lines.filter(l => l.account_id && l.amount > 0);
+            if (!validLines.length) { message.warning('Add at least one account with an amount'); return; }
+            const drTotal = validLines.filter(l => l.balance_type === 'debit').reduce((s, l) => s + (+l.amount || 0), 0);
+            const crTotal = validLines.filter(l => l.balance_type === 'credit').reduce((s, l) => s + (+l.amount || 0), 0);
+            if (Math.abs(drTotal - crTotal) > 0.01) {
+                message.warning(`Opening balance must balance. Debit: ${drTotal.toFixed(2)} — Credit: ${crTotal.toFixed(2)}`);
+                return;
+            }
+            obSaving.value = true;
+            try {
+                const res = await axiosAdmin.post('accounting/opening-balance', {
+                    as_of_date: obForm.value.as_of_date.format('YYYY-MM-DD'),
+                    lines: validLines,
+                });
+                message.success(res.data.message || 'Opening balance posted');
+                obModalVisible.value = false;
+                loadEntries();
+                loadHealth();
+            } catch (e) { message.error(e.response?.data?.message || 'Error posting opening balance'); }
+            finally { obSaving.value = false; }
+        };
 
         const newLine = () => ({ key: Date.now() + Math.random(), account_id: null, description: '', debit: 0, credit: 0 });
         const entryForm = ref({ entry_date: dayjs(), reference: '', description: '', lines: [newLine(), newLine()] });
@@ -359,7 +481,7 @@ export default defineComponent({
             catch (e) { message.error('Cannot delete'); }
         };
 
-        onMounted(() => { loadAccounts(); loadEntries(); });
+        onMounted(() => { loadAccounts(); loadEntries(); loadHealth(); });
 
         return {
             loading, saving, entries, allAccounts, dateRange, pagination,
@@ -367,12 +489,34 @@ export default defineComponent({
             columns, lineColumns, expandable,
             formatDate, formatAmount, filterAccount,
             loadEntries, handleTableChange, openAddModal, addLine, removeLine, saveEntry, deleteEntry,
+            // health
+            health,
+            // opening balance
+            obModalVisible, obSaving, obForm, openObModal, addObLine, removeObLine, saveOpeningBalance,
         };
     }
 });
 </script>
 
 <style scoped>
+/* ── JE Health Bar ── */
+.je-health-bar {
+    display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    margin: 0 24px 16px; padding: 12px 24px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.je-health-stat { display: flex; flex-direction: column; align-items: center; padding: 0 20px; }
+.je-health-val { font-size: 22px; font-weight: 800; color: #1e293b; line-height: 1.1; }
+.je-health-lbl { font-size: 11px; color: #64748b; margin-top: 2px; white-space: nowrap; }
+.je-health-divider { width: 1px; height: 40px; background: #e2e8f0; margin: 0 8px; }
+.je-health-danger .je-health-val { animation: je-pulse 1.5s infinite; }
+@keyframes je-pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+.je-health-alert {
+    margin-left: auto; font-size: 12px; color: #dc2626;
+    background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;
+    padding: 6px 12px; max-width: 340px; word-break: break-all;
+}
+
 /* ── Row hover ── */
 :deep(.je-main-row:hover > td) { background: #f8fafc !important; cursor: pointer; }
 :deep(.ant-table-expanded-row > td) { background: #f8fafc !important; padding: 0 !important; }

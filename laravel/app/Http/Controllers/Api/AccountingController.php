@@ -703,4 +703,78 @@ class AccountingController extends ApiBaseController
 
         return $this->sendResponse(['updated' => $updated], "{$updated} category mappings saved successfully.");
     }
+
+    // ─── OPENING BALANCE ──────────────────────────────────────────────────
+    public function postOpeningBalance(Request $request)
+    {
+        $request->validate([
+            'date'           => 'required|date',
+            'entries'        => 'required|array|min:1',
+            'entries.*.account_code' => 'required|string',
+            'entries.*.amount'       => 'required|numeric|min:0.01',
+            'entries.*.note'         => 'nullable|string',
+        ]);
+
+        $companyId = company()->id;
+        $result    = \App\Services\AccountingService::postOpeningBalance(
+            $companyId,
+            $request->entries,
+            $request->date
+        );
+
+        if (!$result['ok']) {
+            return $this->sendError($result['message']);
+        }
+
+        return $this->sendResponse([
+            'entry_number' => $result['entry']?->entry_number,
+            'warnings'     => $result['warnings'],
+        ], 'Opening balance posted successfully.');
+    }
+
+    // ─── JE HEALTH CHECK ──────────────────────────────────────────────────
+    // Returns a summary of JE status: total, balanced, imbalanced, coverage
+    public function jeHealthCheck()
+    {
+        $companyId = company()->id;
+
+        $total = \App\Models\JournalEntry::where('company_id', $companyId)->count();
+
+        $imbalanced = \DB::table('journal_entries as je')
+            ->where('je.company_id', $companyId)
+            ->leftJoin('journal_entry_lines as jel', 'jel.journal_entry_id', '=', 'je.id')
+            ->select('je.entry_number', \DB::raw('SUM(jel.debit) as dr'), \DB::raw('SUM(jel.credit) as cr'))
+            ->groupBy('je.id', 'je.entry_number')
+            ->havingRaw('ABS(SUM(jel.debit) - SUM(jel.credit)) > 0.01')
+            ->get();
+
+        $ordersWithJE = \DB::table('orders')
+            ->where('company_id', $companyId)
+            ->whereIn('order_type', ['sales', 'purchases'])
+            ->whereExists(function ($q) {
+                $q->from('journal_entries')
+                    ->whereColumn('journal_entries.reference', 'orders.invoice_number');
+            })
+            ->count();
+
+        $ordersTotal = \DB::table('orders')
+            ->where('company_id', $companyId)
+            ->whereIn('order_type', ['sales', 'purchases'])
+            ->count();
+
+        $cogsTotal = \DB::table('journal_entries as je')
+            ->where('je.company_id', $companyId)
+            ->where('je.description', 'like', 'COGS%')
+            ->count();
+
+        return $this->sendResponse([
+            'total_entries'      => $total,
+            'balanced'           => $total - count($imbalanced),
+            'imbalanced'         => $imbalanced,
+            'orders_with_je'     => $ordersWithJE,
+            'orders_total'       => $ordersTotal,
+            'je_coverage_pct'    => $ordersTotal > 0 ? round($ordersWithJE / $ordersTotal * 100, 1) : 0,
+            'cogs_entries'       => $cogsTotal,
+        ], '');
+    }
 }

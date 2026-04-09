@@ -17,48 +17,82 @@ use Illuminate\Support\Facades\Log;
 
 class AccountingService
 {
-    // ─── FALLBACK ACCOUNT CODES (used when category has no mapping) ───────
+    // ─── FALLBACK ACCOUNT CODES ──────────────────────────────────────────
     const CASH_IN_HAND        = '11001';
     const BANK_ACCOUNT        = '11002';
     const ACCOUNTS_RECEIVABLE = '12001';
-    const INVENTORY           = '13007'; // Accessories / General Inventory
+    const INVENTORY           = '13007';
     const ACCOUNTS_PAYABLE    = '21001';
-    const SALES_REVENUE       = '41006'; // Small Appliances Sales (fallback)
-    const COGS                = '51006'; // Cost of Small Appliances (fallback)
+    const SALES_REVENUE       = '41006';
+    const COGS                = '51006';
+    const OWNER_CAPITAL       = '31001';
 
-    // ─── ACCOUNT ID CACHE ────────────────────────────────────────────────
+    // ─── CACHES ──────────────────────────────────────────────────────────
     private static array $accountCache  = [];
     private static array $categoryCache = [];
+
+    // ─── RESULT HELPER ───────────────────────────────────────────────────
+    // Every public method returns this shape so callers can check outcome.
+    private static function result(
+        bool   $ok,
+        string $message,
+        array  $warnings  = [],
+        ?JournalEntry $entry = null
+    ): array {
+        return compact('ok', 'message', 'warnings', 'entry');
+    }
 
     // ─── RESOLVE ACCOUNT ID FROM CODE ────────────────────────────────────
     public static function getAccountId(string $code, int $companyId = 1): ?int
     {
         $key = $companyId . '_' . $code;
-        if (!isset(self::$accountCache[$key])) {
-            $acct = ChartOfAccount::where('company_id', $companyId)
+        if (!array_key_exists($key, self::$accountCache)) {
+            self::$accountCache[$key] = ChartOfAccount::where('company_id', $companyId)
                 ->where('account_code', $code)
                 ->value('id');
-            self::$accountCache[$key] = $acct;
         }
         return self::$accountCache[$key] ?: null;
     }
 
-    // ─── LOAD CATEGORY WITH COA ACCOUNT IDS ──────────────────────────────
+    // ─── LOAD CATEGORY WITH CoA ACCOUNT IDs ──────────────────────────────
+    // Returns null if category mapping is critically missing.
     private static function getCategoryAccounts(int $categoryId, int $companyId): array
     {
         $key = $companyId . '_cat_' . $categoryId;
         if (!isset(self::$categoryCache[$key])) {
             $cat = Category::withoutGlobalScope(\App\Scopes\CompanyScope::class)
                 ->where('id', $categoryId)
-                ->first(['id', 'sales_account_id', 'cogs_account_id', 'inventory_account_id', 'purchase_account_id']);
+                ->first(['id', 'name', 'sales_account_id', 'cogs_account_id', 'inventory_account_id', 'purchase_account_id']);
 
             $fallbackInv = self::getAccountId(self::INVENTORY, $companyId);
+            $usedFallback = [];
+
+            $sales = $cat?->sales_account_id;
+            if (!$sales) {
+                $sales = self::getAccountId(self::SALES_REVENUE, $companyId);
+                $usedFallback[] = 'sales_account';
+            }
+            $cogs = $cat?->cogs_account_id;
+            if (!$cogs) {
+                $cogs = self::getAccountId(self::COGS, $companyId);
+                $usedFallback[] = 'cogs_account';
+            }
+            $inv = $cat?->inventory_account_id ?: $fallbackInv;
+            if (!$cat?->inventory_account_id) $usedFallback[] = 'inventory_account';
+
+            $pur = $cat?->purchase_account_id ?: $inv;
+
+            if (!empty($usedFallback)) {
+                Log::error('[Accounting] FALLBACK accounts used for category [' . ($cat?->name ?? $categoryId) . ']: ' . implode(', ', $usedFallback) . '. Set proper CoA mappings in category settings.');
+            }
 
             self::$categoryCache[$key] = [
-                'sales'     => $cat?->sales_account_id    ?: self::getAccountId(self::SALES_REVENUE, $companyId),
-                'cogs'      => $cat?->cogs_account_id     ?: self::getAccountId(self::COGS, $companyId),
-                'inventory' => $cat?->inventory_account_id ?: $fallbackInv,
-                'purchase'  => $cat?->purchase_account_id  ?: ($cat?->inventory_account_id ?: $fallbackInv),
+                'sales'          => $sales,
+                'cogs'           => $cogs,
+                'inventory'      => $inv,
+                'purchase'       => $pur,
+                'used_fallback'  => $usedFallback,
+                'cat_name'       => $cat?->name ?? 'Unknown',
             ];
         }
         return self::$categoryCache[$key];
@@ -71,77 +105,78 @@ class AccountingService
         return 'JE-' . date('Ymd') . '-' . str_pad($count + 1, 5, '0', STR_PAD_LEFT);
     }
 
-    // ─── CORE: CREATE JOURNAL ENTRY (by account CODE) ─────────────────────
+    // ─── CORE: CREATE JE BY ACCOUNT CODE ─────────────────────────────────
     public static function createEntry(
         int    $companyId,
         string $description,
         string $reference,
         string $date,
-        array  $lines   // [['account_code'=>'11001','debit'=>100,'credit'=>0,'note'=>''], ...]
-    ): ?JournalEntry {
-        $totalDebit  = array_sum(array_column($lines, 'debit'));
-        $totalCredit = array_sum(array_column($lines, 'credit'));
-
-        if (round($totalDebit, 2) !== round($totalCredit, 2) || $totalDebit <= 0) {
-            Log::warning("AccountingService: Imbalanced entry skipped — $description D:{$totalDebit} C:{$totalCredit}");
-            return null;
-        }
-
-        $resolvedLines = [];
+        array  $lines,
+        array  &$warnings = []
+    ): array {
+        $resolved = [];
         foreach ($lines as $line) {
             $accountId = self::getAccountId($line['account_code'], $companyId);
             if (!$accountId) {
-                Log::warning("AccountingService: Account {$line['account_code']} not found, skipping: $description");
-                return null;
+                $msg = "Account code [{$line['account_code']}] not found in CoA — JE skipped: {$description}";
+                Log::error('[Accounting] ' . $msg);
+                $warnings[] = $msg;
+                return self::result(false, $msg, $warnings);
             }
-            $resolvedLines[] = [
+            $resolved[] = [
                 'account_id'  => $accountId,
                 'debit'       => $line['debit'],
                 'credit'      => $line['credit'],
                 'description' => $line['note'] ?? null,
             ];
         }
-
-        return self::createEntryWithLines($companyId, $description, $reference, $date, $resolvedLines);
+        return self::createEntryWithLines($companyId, $description, $reference, $date, $resolved, $warnings);
     }
 
-    // ─── CORE: CREATE JOURNAL ENTRY (by account ID, multi-line) ──────────
+    // ─── CORE: CREATE JE BY ACCOUNT ID ───────────────────────────────────
     public static function createEntryById(
         int    $companyId,
         string $description,
         string $reference,
         string $date,
-        array  $lines   // [['account_id'=>7,'debit'=>100,'credit'=>0,'note'=>''], ...]
-    ): ?JournalEntry {
-        $totalDebit  = array_sum(array_column($lines, 'debit'));
-        $totalCredit = array_sum(array_column($lines, 'credit'));
-
-        if (round($totalDebit, 2) !== round($totalCredit, 2) || $totalDebit <= 0) {
-            Log::warning("AccountingService: Imbalanced entry skipped — $description D:{$totalDebit} C:{$totalCredit}");
-            return null;
+        array  $lines,
+        array  &$warnings = []
+    ): array {
+        $lines = array_values(array_filter($lines, fn($l) => ($l['debit'] + $l['credit']) > 0));
+        if (empty($lines)) {
+            $msg = "All lines have zero amount — JE skipped: {$description}";
+            Log::warning('[Accounting] ' . $msg);
+            $warnings[] = $msg;
+            return self::result(false, $msg, $warnings);
         }
-
-        // Filter zero-value lines
-        $lines = array_filter($lines, fn($l) => ($l['debit'] + $l['credit']) > 0);
-        if (empty($lines)) return null;
-
-        $resolvedLines = array_map(fn($l) => [
+        $resolved = array_map(fn($l) => [
             'account_id'  => $l['account_id'],
             'debit'       => $l['debit'],
             'credit'      => $l['credit'],
             'description' => $l['note'] ?? null,
-        ], array_values($lines));
-
-        return self::createEntryWithLines($companyId, $description, $reference, $date, $resolvedLines);
+        ], $lines);
+        return self::createEntryWithLines($companyId, $description, $reference, $date, $resolved, $warnings);
     }
 
+    // ─── INTERNAL: WRITE JE TO DB WITH BALANCE CHECK ─────────────────────
     private static function createEntryWithLines(
         int    $companyId,
         string $description,
         string $reference,
         string $date,
-        array  $resolvedLines
-    ): ?JournalEntry {
+        array  $lines,
+        array  &$warnings = []
+    ): array {
+        $totalDebit  = round(array_sum(array_column($lines, 'debit')), 2);
+        $totalCredit = round(array_sum(array_column($lines, 'credit')), 2);
+
+        if ($totalDebit <= 0 || $totalDebit !== $totalCredit) {
+            $msg = "Journal Entry IMBALANCED — Dr:{$totalDebit} Cr:{$totalCredit} — [{$description}]";
+            Log::error('[Accounting] CRITICAL: ' . $msg);
+            $warnings[] = 'Journal Entry imbalanced (Dr=' . number_format($totalDebit, 2) . ' Cr=' . number_format($totalCredit, 2) . ') — not posted for: ' . $description;
+            return self::result(false, $msg, $warnings);
+        }
+
         DB::beginTransaction();
         try {
             $entry = JournalEntry::create([
@@ -154,7 +189,7 @@ class AccountingService
                 'created_by'   => auth('api')->id(),
             ]);
 
-            foreach ($resolvedLines as $line) {
+            foreach ($lines as $line) {
                 JournalEntryLine::create([
                     'journal_entry_id' => $entry->id,
                     'account_id'       => $line['account_id'],
@@ -165,39 +200,62 @@ class AccountingService
             }
 
             DB::commit();
-            return $entry;
+            return self::result(true, 'Posted: ' . $entry->entry_number, $warnings, $entry);
+
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error("AccountingService: Failed to create entry — " . $e->getMessage());
-            return null;
+            $msg = 'JE write failed: ' . $e->getMessage() . ' — ' . $description;
+            Log::error('[Accounting] ' . $msg);
+            $warnings[] = 'Journal Entry DB error — ' . $description;
+            return self::result(false, $msg, $warnings);
         }
     }
 
-    // ─── LOAD ORDER ITEMS WITH PRODUCT CATEGORY ──────────────────────────
-    private static function loadItemsWithCategory(Order $order, int $companyId): array
+    // ─── LOAD ORDER ITEMS WITH PRODUCT CATEGORY + COST ───────────────────
+    private static function loadItemsWithCategory(Order $order, int $companyId, array &$warnings): array
     {
-        $items = OrderItem::where('order_id', $order->id)->get();
+        $items  = OrderItem::where('order_id', $order->id)->get();
         $result = [];
 
         foreach ($items as $item) {
-            $product = Product::withoutGlobalScope(\App\Scopes\CompanyScope::class)
-                ->find($item->product_id, ['id', 'category_id']);
-
-            $categoryId = $product?->category_id ?? 0;
-            $catAccts   = self::getCategoryAccounts((int)$categoryId, $companyId);
+            $product    = Product::withoutGlobalScope(\App\Scopes\CompanyScope::class)->find($item->product_id, ['id', 'name', 'item_code', 'category_id']);
+            $categoryId = (int)($product?->category_id ?? 0);
+            $catAccts   = self::getCategoryAccounts($categoryId, $companyId);
 
             $productDetail = ProductDetails::withoutGlobalScope('current_warehouse')
                 ->where('product_id', $item->product_id)
                 ->where('warehouse_id', $order->warehouse_id)
                 ->first(['purchase_price']);
 
+            $purchasePrice = (float)($productDetail?->purchase_price ?? 0);
+            $qty           = (float)$item->quantity;
+            $costTotal     = round($purchasePrice * $qty, 2);
+            $unitPrice     = (float)$item->unit_price;
+
+            // ── COGS FALLBACK: use unit_price when purchase_price = 0 ───
+            // This ensures COGS always posts. Flag a warning so admin knows
+            // to enter real purchase prices.
+            $costUsed = $costTotal;
+            if ($costTotal <= 0 && $unitPrice > 0) {
+                $costUsed = round($unitPrice * $qty, 2);
+                $warn = 'Purchase price missing for [' . ($product?->name ?? $item->product_id) . '] — selling price used as COGS placeholder (PKR ' . number_format($costUsed, 2) . '). Update purchase price to correct P&L.';
+                Log::error('[Accounting] COGS WARNING: ' . $warn);
+                $warnings[] = $warn;
+            } elseif ($costTotal <= 0) {
+                $warn = 'Purchase price AND selling price both 0 for [' . ($product?->name ?? $item->product_id) . '] — COGS entry will be zero.';
+                Log::error('[Accounting] COGS CRITICAL: ' . $warn);
+                $warnings[] = $warn;
+            }
+
             $result[] = [
-                'subtotal'              => round((float)$item->subtotal, 2),
-                'cost'                  => round(((float)($productDetail?->purchase_price ?? 0)) * (float)$item->quantity, 2),
-                'sales_account_id'      => $catAccts['sales'],
-                'cogs_account_id'       => $catAccts['cogs'],
-                'inventory_account_id'  => $catAccts['inventory'],
-                'purchase_account_id'   => $catAccts['purchase'],
+                'product_name'         => $product?->name ?? 'Unknown',
+                'subtotal'             => round((float)$item->subtotal, 2),
+                'cost'                 => $costUsed,
+                'cost_is_fallback'     => ($costTotal <= 0 && $unitPrice > 0),
+                'sales_account_id'     => $catAccts['sales'],
+                'cogs_account_id'      => $catAccts['cogs'],
+                'inventory_account_id' => $catAccts['inventory'],
+                'purchase_account_id'  => $catAccts['purchase'],
             ];
         }
 
@@ -213,185 +271,145 @@ class AccountingService
             if (!$acctId) continue;
             $grouped[$acctId] = ($grouped[$acctId] ?? 0) + $item[$amountKey];
         }
-        return $grouped; // [account_id => amount]
+        return $grouped;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
     // ─── SALES TRANSACTION ────────────────────────────────────────────────
-    public static function onSaleCreated(Order $order): void
+    public static function onSaleCreated(Order $order): array
     {
+        $warnings  = [];
+        $allResults = [];
+
         try {
-            $companyId  = $order->company_id ?? 1;
-            $total      = round((float)$order->total, 2);
-            if ($total <= 0) return;
+            $companyId = $order->company_id ?? 1;
+            $total     = round((float)$order->total, 2);
+            if ($total <= 0) return self::result(true, 'Zero-value sale — no JE needed', $warnings);
 
             $date      = $order->order_date ?? now()->toDateString();
             $reference = $order->invoice_number;
+            $items     = self::loadItemsWithCategory($order, $companyId, $warnings);
 
-            $items = self::loadItemsWithCategory($order, $companyId);
+            $paidAmount  = round((float)$order->paid_amount, 2);
+            $dueAmount   = round($total - $paidAmount, 2);
+            $cashAcctId  = self::getAccountId(self::CASH_IN_HAND, $companyId);
+            $arAcctId    = self::getAccountId(self::ACCOUNTS_RECEIVABLE, $companyId);
+            $revByAcct   = self::sumByAccount($items, 'subtotal', 'sales_account_id');
 
             // ── 1. REVENUE ENTRY ──────────────────────────────────────────
-            // Full payment:    DR Cash (total)          / CR Sales Revenue
-            // Partial payment: DR Cash (paid) + DR AR (due) / CR Sales Revenue
-            // Credit sale:     DR AR (total)            / CR Sales Revenue
-            $paidAmount = round((float)$order->paid_amount, 2);
-            $dueAmount  = round($total - $paidAmount, 2);
-
-            $cashAcctId = self::getAccountId(self::CASH_IN_HAND, $companyId);
-            $arAcctId   = self::getAccountId(self::ACCOUNTS_RECEIVABLE, $companyId);
-
-            $revByAcct = self::sumByAccount($items, 'subtotal', 'sales_account_id');
-            $revTotal  = array_sum($revByAcct);
-
-            // Build debit lines depending on payment scenario
             $debitLines = [];
             if ($paidAmount >= $total) {
-                // Full payment — DR Cash for full amount
-                $debitLines[] = ['account_id' => $cashAcctId, 'debit' => $total, 'credit' => 0, 'note' => 'Cash received (full)'];
+                $debitLines[] = ['account_id' => $cashAcctId, 'debit' => $total,       'credit' => 0, 'note' => 'Cash received (full)'];
             } elseif ($paidAmount > 0) {
-                // Partial payment — DR Cash (paid portion) + DR AR (due portion)
-                $debitLines[] = ['account_id' => $cashAcctId, 'debit' => $paidAmount, 'credit' => 0, 'note' => 'Cash received (partial)'];
-                $debitLines[] = ['account_id' => $arAcctId,   'debit' => $dueAmount,  'credit' => 0, 'note' => 'Amount receivable'];
+                $debitLines[] = ['account_id' => $cashAcctId, 'debit' => $paidAmount,  'credit' => 0, 'note' => 'Cash received (partial)'];
+                $debitLines[] = ['account_id' => $arAcctId,   'debit' => $dueAmount,   'credit' => 0, 'note' => 'Amount receivable'];
             } else {
-                // Credit sale — DR AR for full amount
-                $debitLines[] = ['account_id' => $arAcctId, 'debit' => $total, 'credit' => 0, 'note' => 'Credit sale — full AR'];
+                $debitLines[] = ['account_id' => $arAcctId,   'debit' => $total,       'credit' => 0, 'note' => 'Credit sale — full AR'];
             }
 
-            // Build credit lines (sales revenue by category)
             $creditLines = [];
             foreach ($revByAcct as $acctId => $amount) {
-                if ($amount > 0) {
-                    $creditLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => round($amount, 2), 'note' => 'Sales revenue'];
-                }
+                if ($amount > 0) $creditLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => round($amount, 2), 'note' => 'Sales revenue'];
             }
-            // Fallback if no items loaded
             if (empty($creditLines)) {
-                $fallbackSales = self::getAccountId(self::SALES_REVENUE, $companyId);
-                $creditLines[] = ['account_id' => $fallbackSales, 'debit' => 0, 'credit' => $total, 'note' => 'Sales revenue'];
+                $fb = self::getAccountId(self::SALES_REVENUE, $companyId);
+                $creditLines[] = ['account_id' => $fb, 'debit' => 0, 'credit' => $total, 'note' => 'Sales revenue (fallback)'];
+                $warnings[] = 'Revenue account fell back to default for ' . $reference;
             }
 
-            $revenueLines = array_merge($debitLines, $creditLines);
-            self::createEntryById($companyId, "Sale — {$reference}", $reference, $date, $revenueLines);
+            $r1 = self::createEntryById($companyId, "Sale — {$reference}", $reference, $date, array_merge($debitLines, $creditLines), $warnings);
+            $allResults[] = $r1;
 
             // ── 2. COGS ENTRY ─────────────────────────────────────────────
-            // DR: Per-category COGS / CR: Per-category Inventory
-            self::buildAndPostCogsEntry($items, $companyId, $date, $reference, "COGS — {$reference}");
+            $r2 = self::buildAndPostCogsEntry($items, $companyId, $date, $reference, "COGS — {$reference}", false, $warnings);
+            $allResults[] = $r2;
 
         } catch (\Throwable $e) {
-            Log::error('AccountingService::onSaleCreated — ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+            $msg = 'onSaleCreated exception: ' . $e->getMessage();
+            Log::error('[Accounting] ' . $msg . ' ' . $e->getTraceAsString());
+            $warnings[] = $msg;
+            return self::result(false, $msg, $warnings);
         }
+
+        $failed = array_filter($allResults, fn($r) => !$r['ok']);
+        return self::result(
+            empty($failed),
+            empty($failed) ? 'Sale JEs posted successfully' : 'Some JEs failed — see warnings',
+            $warnings
+        );
     }
 
     // ─── ADVANCE BOOKING ──────────────────────────────────────────────────
-    // DR: Cash/Bank (advance received)
-    // CR: Customer Advances — liability (account_code 23002)
-    public static function onAdvanceBookingCreated(Order $order): void
+    public static function onAdvanceBookingCreated(Order $order): array
     {
+        $warnings = [];
         try {
             $companyId  = $order->company_id ?? 1;
             $paidAmount = round((float)$order->paid_amount, 2);
-            if ($paidAmount <= 0) return;
+            if ($paidAmount <= 0) return self::result(true, 'Zero advance — no JE needed', $warnings);
 
             $date      = $order->order_date ?? now()->toDateString();
             $reference = $order->invoice_number;
 
-            // Determine cash/bank account from first payment
             $firstPayment = $order->orderPayments()->with('payment.paymentMode')->first();
             $cashAcct = self::CASH_IN_HAND;
-            if ($firstPayment && $firstPayment->payment && $firstPayment->payment->paymentMode) {
-                if ($firstPayment->payment->paymentMode->mode_type === 'bank') {
-                    $cashAcct = self::BANK_ACCOUNT;
-                }
+            if ($firstPayment?->payment?->paymentMode?->mode_type === 'bank') {
+                $cashAcct = self::BANK_ACCOUNT;
             }
 
-            self::createEntry($companyId, "Advance Booking — {$reference}", $reference, $date, [
+            $r = self::createEntry($companyId, "Advance Booking — {$reference}", $reference, $date, [
                 ['account_code' => $cashAcct, 'debit' => $paidAmount, 'credit' => 0,           'note' => 'Advance deposit received'],
                 ['account_code' => '23002',   'debit' => 0,           'credit' => $paidAmount, 'note' => 'Customer advance liability'],
-            ]);
-
+            ], $warnings);
+            return $r;
         } catch (\Throwable $e) {
-            Log::error('AccountingService::onAdvanceBookingCreated — ' . $e->getMessage());
+            $msg = 'onAdvanceBookingCreated: ' . $e->getMessage();
+            Log::error('[Accounting] ' . $msg);
+            $warnings[] = $msg;
+            return self::result(false, $msg, $warnings);
         }
     }
 
-    // ─── RECEIVE PAYMENT ON DUE SALE ─────────────────────────────────────
-    // DR: Cash/Bank (payment received)
-    // CR: Accounts Receivable (AR cleared)
-    public static function onPaymentReceived(Payment $payment, Order $order): void
+    // ─── PAYMENT RECEIVED (Due → Cash) ────────────────────────────────────
+    public static function onPaymentReceived(Payment $payment, Order $order): array
     {
+        $warnings = [];
         try {
             $companyId = $order->company_id ?? 1;
             $amount    = round((float)$payment->amount, 2);
-            if ($amount <= 0) return;
+            if ($amount <= 0) return self::result(true, 'Zero payment — no JE needed', $warnings);
 
             $date      = $payment->date ? date('Y-m-d', strtotime($payment->date)) : now()->toDateString();
             $reference = $payment->payment_number ?? ('RCP-' . $order->invoice_number);
             $cashAcct  = self::getPaymentAccount($payment);
 
-            self::createEntry($companyId, "Payment Received — {$reference} (Invoice: {$order->invoice_number})", $reference, $date, [
-                ['account_code' => $cashAcct,                    'debit' => $amount, 'credit' => 0,      'note' => 'Cash/Bank received'],
-                ['account_code' => self::ACCOUNTS_RECEIVABLE,    'debit' => 0,       'credit' => $amount, 'note' => 'AR cleared'],
-            ]);
-
+            return self::createEntry($companyId,
+                "Payment Received — {$reference} (Invoice: {$order->invoice_number})",
+                $reference, $date, [
+                    ['account_code' => $cashAcct,                 'debit' => $amount, 'credit' => 0,      'note' => 'Cash/Bank received'],
+                    ['account_code' => self::ACCOUNTS_RECEIVABLE, 'debit' => 0,       'credit' => $amount, 'note' => 'AR cleared'],
+                ], $warnings);
         } catch (\Throwable $e) {
-            Log::error('AccountingService::onPaymentReceived — ' . $e->getMessage());
+            $msg = 'onPaymentReceived: ' . $e->getMessage();
+            Log::error('[Accounting] ' . $msg);
+            $warnings[] = $msg;
+            return self::result(false, $msg, $warnings);
         }
     }
 
-    private static function buildAndPostCogsEntry(
-        array  $items,
-        int    $companyId,
-        string $date,
-        string $reference,
-        string $description,
-        bool   $reverse = false
-    ): void {
-        $cogsByAcct  = self::sumByAccount($items, 'cost', 'cogs_account_id');
-        $invByAcct   = self::sumByAccount($items, 'cost', 'inventory_account_id');
-        $totalCost   = array_sum($cogsByAcct);
-
-        if ($totalCost <= 0) return;
-
-        $cogsLines = [];
-
-        if (!$reverse) {
-            // Normal: DR COGS / CR Inventory
-            foreach ($cogsByAcct as $acctId => $amount) {
-                if ($amount > 0) $cogsLines[] = ['account_id' => $acctId, 'debit' => round($amount, 2), 'credit' => 0, 'note' => 'Cost of goods sold'];
-            }
-            foreach ($invByAcct as $acctId => $amount) {
-                if ($amount > 0) $cogsLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => round($amount, 2), 'note' => 'Inventory reduction'];
-            }
-        } else {
-            // Reversal: DR Inventory / CR COGS
-            foreach ($invByAcct as $acctId => $amount) {
-                if ($amount > 0) $cogsLines[] = ['account_id' => $acctId, 'debit' => round($amount, 2), 'credit' => 0, 'note' => 'Return to inventory'];
-            }
-            foreach ($cogsByAcct as $acctId => $amount) {
-                if ($amount > 0) $cogsLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => round($amount, 2), 'note' => 'COGS reversal'];
-            }
-        }
-
-        if (!empty($cogsLines)) {
-            self::createEntryById($companyId, $description, $reference, $date, $cogsLines);
-        }
-    }
-
-    // ─── PURCHASE TRANSACTION ─────────────────────────────────────────────
-    public static function onPurchaseCreated(Order $order): void
+    // ─── PURCHASE / GRN ───────────────────────────────────────────────────
+    public static function onPurchaseCreated(Order $order): array
     {
+        $warnings = [];
         try {
             $companyId = $order->company_id ?? 1;
             $total     = round((float)$order->total, 2);
-            if ($total <= 0) return;
+            if ($total <= 0) return self::result(true, 'Zero purchase — no JE needed', $warnings);
 
             $date      = $order->order_date ?? now()->toDateString();
             $reference = $order->invoice_number;
+            $items     = self::loadItemsWithCategory($order, $companyId, $warnings);
 
-            $items = self::loadItemsWithCategory($order, $companyId);
-
-            // DR: Per-category Inventory (subtotals)
-            // CR: Accounts Payable (total)
-            // Use purchase_account_id (dedicated purchase/receiving account per category)
             $purchByAcct = self::sumByAccount($items, 'subtotal', 'purchase_account_id');
             $apAcctId    = self::getAccountId(self::ACCOUNTS_PAYABLE, $companyId);
             $purchTotal  = array_sum($purchByAcct);
@@ -400,173 +418,297 @@ class AccountingService
             foreach ($purchByAcct as $acctId => $amount) {
                 if ($amount > 0) $purchaseLines[] = ['account_id' => $acctId, 'debit' => round($amount, 2), 'credit' => 0, 'note' => 'Stock purchased'];
             }
-            $purchaseLines[] = ['account_id' => $apAcctId, 'debit' => 0, 'credit' => $purchTotal ?: $total, 'note' => 'Supplier payable'];
 
-            // Fallback if no items loaded
-            if (count($purchaseLines) === 1) {
+            if (empty($purchaseLines)) {
                 $fallbackInv = self::getAccountId(self::INVENTORY, $companyId);
-                array_unshift($purchaseLines, ['account_id' => $fallbackInv, 'debit' => $total, 'credit' => 0, 'note' => 'Stock purchased']);
-                $purchaseLines[count($purchaseLines) - 1]['credit'] = $total;
+                $purchaseLines[] = ['account_id' => $fallbackInv, 'debit' => $total, 'credit' => 0, 'note' => 'Stock purchased (fallback)'];
+                $purchTotal = $total;
+                $warnings[] = 'Inventory account fell back to default for ' . $reference;
             }
 
-            self::createEntryById($companyId, "Purchase — {$reference}", $reference, $date, $purchaseLines);
+            $purchaseLines[] = ['account_id' => $apAcctId, 'debit' => 0, 'credit' => $purchTotal ?: $total, 'note' => 'Supplier payable'];
+
+            return self::createEntryById($companyId, "Purchase — {$reference}", $reference, $date, $purchaseLines, $warnings);
 
         } catch (\Throwable $e) {
-            Log::error('AccountingService::onPurchaseCreated — ' . $e->getMessage());
+            $msg = 'onPurchaseCreated: ' . $e->getMessage();
+            Log::error('[Accounting] ' . $msg);
+            $warnings[] = $msg;
+            return self::result(false, $msg, $warnings);
         }
     }
 
-    // ─── SALES RETURN ─────────────────────────────────────────────────────
-    public static function onSaleReturnCreated(Order $order): void
+    // ─── SALES RETURN ──────────────────────────────────────────────────────
+    // Fix: detect whether original sale was cash or credit and reverse correctly.
+    public static function onSaleReturnCreated(Order $order): array
     {
+        $warnings = [];
         try {
             $companyId = $order->company_id ?? 1;
             $total     = round((float)$order->total, 2);
-            if ($total <= 0) return;
+            if ($total <= 0) return self::result(true, 'Zero return — no JE needed', $warnings);
 
             $date      = $order->order_date ?? now()->toDateString();
             $reference = $order->invoice_number;
+            $items     = self::loadItemsWithCategory($order, $companyId, $warnings);
 
-            $items = self::loadItemsWithCategory($order, $companyId);
+            // ── Detect original sale type from parent order ───────────────
+            $parentOrder  = $order->parent_order_id ? Order::find($order->parent_order_id) : null;
+            $cashAcctId   = self::getAccountId(self::CASH_IN_HAND, $companyId);
+            $arAcctId     = self::getAccountId(self::ACCOUNTS_RECEIVABLE, $companyId);
 
-            // DR: Sales Revenue / CR: AR
-            $revByAcct  = self::sumByAccount($items, 'subtotal', 'sales_account_id');
-            $arAcctId   = self::getAccountId(self::ACCOUNTS_RECEIVABLE, $companyId);
-            $revTotal   = array_sum($revByAcct);
+            // Determine credit account: cash return → CR Cash, credit → CR AR
+            $creditAcctId = $arAcctId; // default
+            $creditNote   = 'Return to customer (AR)';
+            if ($parentOrder) {
+                $paidAmt = round((float)$parentOrder->paid_amount, 2);
+                $parentTotal = round((float)$parentOrder->total, 2);
+                if ($paidAmt >= $parentTotal) {
+                    // Original was fully paid cash sale → return cash
+                    $creditAcctId = $cashAcctId;
+                    $creditNote   = 'Cash refunded to customer';
+                } elseif ($paidAmt > 0) {
+                    // Partial: split proportionally — for simplicity use AR
+                    $creditNote = 'Partial cash return — AR adjusted';
+                }
+                // If paidAmt == 0 → credit sale → AR (already default)
+            } else {
+                $warnings[] = 'Parent order not found for return ' . $reference . ' — defaulted to AR credit';
+            }
 
+            $revByAcct = self::sumByAccount($items, 'subtotal', 'sales_account_id');
+            $revTotal  = array_sum($revByAcct);
+
+            // DR Sales Revenue / CR Cash or AR
             $returnLines = [];
             foreach ($revByAcct as $acctId => $amount) {
-                if ($amount > 0) $returnLines[] = ['account_id' => $acctId, 'debit' => round($amount, 2), 'credit' => 0, 'note' => 'Sales return'];
+                if ($amount > 0) $returnLines[] = ['account_id' => $acctId, 'debit' => round($amount, 2), 'credit' => 0, 'note' => 'Sales return — revenue reversed'];
             }
-            $returnLines[] = ['account_id' => $arAcctId, 'debit' => 0, 'credit' => $revTotal ?: $total, 'note' => 'Return to customer'];
-
-            if (count($returnLines) === 1) {
-                $fallback = self::getAccountId(self::SALES_REVENUE, $companyId);
-                array_unshift($returnLines, ['account_id' => $fallback, 'debit' => $total, 'credit' => 0, 'note' => 'Sales return']);
-                $returnLines[count($returnLines) - 1]['credit'] = $total;
+            if (empty($returnLines)) {
+                $fb = self::getAccountId(self::SALES_REVENUE, $companyId);
+                $returnLines[] = ['account_id' => $fb, 'debit' => $total, 'credit' => 0, 'note' => 'Sales return (fallback)'];
+                $revTotal = $total;
             }
+            $returnLines[] = ['account_id' => $creditAcctId, 'debit' => 0, 'credit' => $revTotal ?: $total, 'note' => $creditNote];
 
-            self::createEntryById($companyId, "Sales Return — {$reference}", $reference, $date, $returnLines);
+            $r1 = self::createEntryById($companyId, "Sales Return — {$reference}", $reference, $date, $returnLines, $warnings);
 
             // Reverse COGS (inventory back)
-            self::buildAndPostCogsEntry($items, $companyId, $date, $reference, "COGS Reversal — {$reference}", true);
+            $r2 = self::buildAndPostCogsEntry($items, $companyId, $date, $reference, "COGS Reversal — {$reference}", true, $warnings);
+
+            $failed = array_filter([$r1, $r2], fn($r) => !$r['ok']);
+            return self::result(empty($failed), empty($failed) ? 'Sales return JEs posted' : 'Some JEs failed', $warnings);
 
         } catch (\Throwable $e) {
-            Log::error('AccountingService::onSaleReturnCreated — ' . $e->getMessage());
+            $msg = 'onSaleReturnCreated: ' . $e->getMessage();
+            Log::error('[Accounting] ' . $msg);
+            $warnings[] = $msg;
+            return self::result(false, $msg, $warnings);
         }
     }
 
     // ─── PURCHASE RETURN ──────────────────────────────────────────────────
-    public static function onPurchaseReturnCreated(Order $order): void
+    public static function onPurchaseReturnCreated(Order $order): array
     {
+        $warnings = [];
         try {
             $companyId = $order->company_id ?? 1;
             $total     = round((float)$order->total, 2);
-            if ($total <= 0) return;
+            if ($total <= 0) return self::result(true, 'Zero return — no JE needed', $warnings);
 
             $date      = $order->order_date ?? now()->toDateString();
             $reference = $order->invoice_number;
+            $items     = self::loadItemsWithCategory($order, $companyId, $warnings);
 
-            $items = self::loadItemsWithCategory($order, $companyId);
-
-            // DR: AP / CR: Per-category Inventory
             $invByAcct = self::sumByAccount($items, 'subtotal', 'inventory_account_id');
             $apAcctId  = self::getAccountId(self::ACCOUNTS_PAYABLE, $companyId);
             $invTotal  = array_sum($invByAcct);
 
-            $returnLines = [['account_id' => $apAcctId, 'debit' => $invTotal ?: $total, 'credit' => 0, 'note' => 'AP reduced']];
+            $returnLines = [['account_id' => $apAcctId, 'debit' => $invTotal ?: $total, 'credit' => 0, 'note' => 'AP reduced — purchase return']];
             foreach ($invByAcct as $acctId => $amount) {
-                if ($amount > 0) $returnLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => round($amount, 2), 'note' => 'Inventory returned'];
+                if ($amount > 0) $returnLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => round($amount, 2), 'note' => 'Inventory returned to supplier'];
             }
 
             if (count($returnLines) === 1) {
-                $fallbackInv = self::getAccountId(self::INVENTORY, $companyId);
-                $returnLines[] = ['account_id' => $fallbackInv, 'debit' => 0, 'credit' => $total, 'note' => 'Inventory returned'];
+                $fb = self::getAccountId(self::INVENTORY, $companyId);
+                $returnLines[] = ['account_id' => $fb, 'debit' => 0, 'credit' => $total, 'note' => 'Inventory returned (fallback)'];
                 $returnLines[0]['debit'] = $total;
+                $warnings[] = 'Inventory account fell back to default for return ' . $reference;
             }
 
-            self::createEntryById($companyId, "Purchase Return — {$reference}", $reference, $date, $returnLines);
+            return self::createEntryById($companyId, "Purchase Return — {$reference}", $reference, $date, $returnLines, $warnings);
 
         } catch (\Throwable $e) {
-            Log::error('AccountingService::onPurchaseReturnCreated — ' . $e->getMessage());
+            $msg = 'onPurchaseReturnCreated: ' . $e->getMessage();
+            Log::error('[Accounting] ' . $msg);
+            $warnings[] = $msg;
+            return self::result(false, $msg, $warnings);
         }
     }
 
     // ─── PAYMENT IN (Customer pays us) ────────────────────────────────────
-    public static function onPaymentInCreated(Payment $payment): void
+    public static function onPaymentInCreated(Payment $payment): array
     {
+        $warnings = [];
         try {
             $companyId = $payment->company_id ?? 1;
             $amount    = round((float)$payment->amount, 2);
-            if ($amount <= 0) return;
+            if ($amount <= 0) return self::result(true, 'Zero amount — no JE', $warnings);
 
             $date      = $payment->date ? date('Y-m-d', strtotime($payment->date)) : now()->toDateString();
             $reference = $payment->payment_number;
             $cashAcct  = self::getPaymentAccount($payment);
 
-            self::createEntry($companyId, "Customer Payment — {$reference}", $reference, $date, [
+            return self::createEntry($companyId, "Customer Payment — {$reference}", $reference, $date, [
                 ['account_code' => $cashAcct,                 'debit' => $amount, 'credit' => 0,      'note' => 'Cash/Bank received'],
                 ['account_code' => self::ACCOUNTS_RECEIVABLE, 'debit' => 0,       'credit' => $amount, 'note' => 'AR cleared'],
-            ]);
+            ], $warnings);
         } catch (\Throwable $e) {
-            Log::error('AccountingService::onPaymentInCreated — ' . $e->getMessage());
+            $msg = 'onPaymentInCreated: ' . $e->getMessage();
+            Log::error('[Accounting] ' . $msg);
+            $warnings[] = $msg;
+            return self::result(false, $msg, $warnings);
         }
     }
 
     // ─── PAYMENT OUT (We pay supplier) ────────────────────────────────────
-    public static function onPaymentOutCreated(Payment $payment): void
+    public static function onPaymentOutCreated(Payment $payment): array
     {
+        $warnings = [];
         try {
             $companyId = $payment->company_id ?? 1;
             $amount    = round((float)$payment->amount, 2);
-            if ($amount <= 0) return;
+            if ($amount <= 0) return self::result(true, 'Zero amount — no JE', $warnings);
 
             $date      = $payment->date ? date('Y-m-d', strtotime($payment->date)) : now()->toDateString();
             $reference = $payment->payment_number;
             $cashAcct  = self::getPaymentAccount($payment);
 
-            self::createEntry($companyId, "Supplier Payment — {$reference}", $reference, $date, [
+            return self::createEntry($companyId, "Supplier Payment — {$reference}", $reference, $date, [
                 ['account_code' => self::ACCOUNTS_PAYABLE, 'debit' => $amount, 'credit' => 0,      'note' => 'AP cleared'],
                 ['account_code' => $cashAcct,              'debit' => 0,       'credit' => $amount, 'note' => 'Cash/Bank paid'],
-            ]);
+            ], $warnings);
         } catch (\Throwable $e) {
-            Log::error('AccountingService::onPaymentOutCreated — ' . $e->getMessage());
+            $msg = 'onPaymentOutCreated: ' . $e->getMessage();
+            Log::error('[Accounting] ' . $msg);
+            $warnings[] = $msg;
+            return self::result(false, $msg, $warnings);
         }
     }
 
-    // ─── HELPER: Cash or Bank account code from payment mode ─────────────
+    // ─── OPENING BALANCE ──────────────────────────────────────────────────
+    // DR: Cash/Bank/Inventory   CR: Owner Capital
+    public static function postOpeningBalance(int $companyId, array $entries, string $date): array
+    {
+        $warnings = [];
+        try {
+            $ownerCapitalId = self::getAccountId(self::OWNER_CAPITAL, $companyId);
+            if (!$ownerCapitalId) {
+                $msg = 'Owner Capital account (31001) not found in CoA';
+                Log::error('[Accounting] Opening Balance: ' . $msg);
+                return self::result(false, $msg, []);
+            }
+
+            $lines       = [];
+            $totalDebit  = 0;
+
+            foreach ($entries as $e) {
+                $acctId = self::getAccountId($e['account_code'], $companyId);
+                if (!$acctId) {
+                    $warnings[] = 'Account code ' . $e['account_code'] . ' not found — skipped';
+                    continue;
+                }
+                $amt = round((float)$e['amount'], 2);
+                if ($amt <= 0) continue;
+                $lines[] = ['account_id' => $acctId, 'debit' => $amt, 'credit' => 0, 'note' => $e['note'] ?? 'Opening balance'];
+                $totalDebit += $amt;
+            }
+
+            if ($totalDebit <= 0 || empty($lines)) {
+                return self::result(false, 'No valid opening balance entries provided', $warnings);
+            }
+
+            // CR Owner Capital for the total
+            $lines[] = ['account_id' => $ownerCapitalId, 'debit' => 0, 'credit' => $totalDebit, 'note' => 'Owner capital — opening balance'];
+
+            return self::createEntryById($companyId, 'Opening Balance', 'OB-' . date('Ymd', strtotime($date)), $date, $lines, $warnings);
+
+        } catch (\Throwable $e) {
+            $msg = 'postOpeningBalance: ' . $e->getMessage();
+            Log::error('[Accounting] ' . $msg);
+            return self::result(false, $msg, []);
+        }
+    }
+
+    // ─── COGS ENTRY BUILDER ───────────────────────────────────────────────
+    private static function buildAndPostCogsEntry(
+        array  $items,
+        int    $companyId,
+        string $date,
+        string $reference,
+        string $description,
+        bool   $reverse,
+        array  &$warnings
+    ): array {
+        $cogsByAcct = self::sumByAccount($items, 'cost', 'cogs_account_id');
+        $invByAcct  = self::sumByAccount($items, 'cost', 'inventory_account_id');
+        $totalCost  = array_sum($cogsByAcct);
+
+        if ($totalCost <= 0) {
+            $warnings[] = 'COGS entry skipped — all item costs are zero for ' . $reference . '. Enter purchase prices on products to enable cost tracking.';
+            return self::result(false, 'COGS skipped — zero cost', $warnings);
+        }
+
+        $cogsLines = [];
+        if (!$reverse) {
+            foreach ($cogsByAcct as $acctId => $amount) {
+                if ($amount > 0) $cogsLines[] = ['account_id' => $acctId, 'debit' => round($amount, 2), 'credit' => 0, 'note' => 'Cost of goods sold'];
+            }
+            foreach ($invByAcct as $acctId => $amount) {
+                if ($amount > 0) $cogsLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => round($amount, 2), 'note' => 'Inventory reduction'];
+            }
+        } else {
+            foreach ($invByAcct as $acctId => $amount) {
+                if ($amount > 0) $cogsLines[] = ['account_id' => $acctId, 'debit' => round($amount, 2), 'credit' => 0, 'note' => 'Return to inventory'];
+            }
+            foreach ($cogsByAcct as $acctId => $amount) {
+                if ($amount > 0) $cogsLines[] = ['account_id' => $acctId, 'debit' => 0, 'credit' => round($amount, 2), 'note' => 'COGS reversal'];
+            }
+        }
+
+        return empty($cogsLines)
+            ? self::result(false, 'No COGS lines generated', $warnings)
+            : self::createEntryById($companyId, $description, $reference, $date, $cogsLines, $warnings);
+    }
+
+    // ─── HELPER: Cash or Bank account code ───────────────────────────────
     private static function getPaymentAccount(Payment $payment): string
     {
         if (!$payment->payment_mode_id) return self::CASH_IN_HAND;
         $mode = PaymentMode::find($payment->payment_mode_id);
-        if ($mode && $mode->mode_type === 'bank') return self::BANK_ACCOUNT;
-        return self::CASH_IN_HAND;
+        return ($mode && $mode->mode_type === 'bank') ? self::BANK_ACCOUNT : self::CASH_IN_HAND;
     }
 
-    // ─── DISPATCH based on order_type ─────────────────────────────────────
-    public static function handleOrder(Order $order, string $saleMode = 'full'): void
+    // ─── DISPATCHER: by order_type ────────────────────────────────────────
+    public static function handleOrder(Order $order, string $saleMode = 'full'): array
     {
         if ($order->order_type === 'sales' && $saleMode === 'advance') {
-            self::onAdvanceBookingCreated($order);
-            return;
+            return self::onAdvanceBookingCreated($order);
         }
-
-        match ($order->order_type) {
+        return match ($order->order_type) {
             'sales'            => self::onSaleCreated($order),
             'purchases', 'grn' => self::onPurchaseCreated($order),
             'sales-returns'    => self::onSaleReturnCreated($order),
             'purchase-returns' => self::onPurchaseReturnCreated($order),
-            default            => null,
+            default            => self::result(true, 'Order type [' . $order->order_type . '] has no JE handler — skipped', []),
         };
     }
 
-    // ─── DISPATCH based on payment_type ───────────────────────────────────
-    public static function handlePayment(Payment $payment): void
+    // ─── DISPATCHER: by payment_type ─────────────────────────────────────
+    public static function handlePayment(Payment $payment): array
     {
-        if ($payment->payment_type === 'in') {
-            self::onPaymentInCreated($payment);
-        } elseif ($payment->payment_type === 'out') {
-            self::onPaymentOutCreated($payment);
-        }
+        if ($payment->payment_type === 'in')  return self::onPaymentInCreated($payment);
+        if ($payment->payment_type === 'out') return self::onPaymentOutCreated($payment);
+        return self::result(true, 'Payment type has no JE handler', []);
     }
 }

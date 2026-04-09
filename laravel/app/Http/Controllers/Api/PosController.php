@@ -313,7 +313,7 @@ class PosController extends ApiBaseController
         \Log::info('[POS] after updateWarehouseHistory t=' . round(microtime(true)-$t0, 2));
 
         // Auto-generate journal entry for POS sale
-        AccountingService::handleOrder($order, $saleMode);
+        $jeResult = AccountingService::handleOrder($order, $saleMode);
         \Log::info('[POS] after handleOrder t=' . round(microtime(true)-$t0, 2));
 
         // Update cash register totals if one is open for this user
@@ -347,7 +347,10 @@ class PosController extends ApiBaseController
         $savedOrder->total_tax_on_items = $totalTax + $savedOrder->tax_amount;
 
         return ApiResponse::make('POS Data Saved', [
-            'order' => $savedOrder,
+            'order'        => $savedOrder,
+            'je_ok'        => $jeResult['ok'] ?? true,
+            'je_message'   => $jeResult['message'] ?? '',
+            'je_warnings'  => $jeResult['warnings'] ?? [],
         ]);
     }
 
@@ -410,7 +413,7 @@ class PosController extends ApiBaseController
         $order->refresh();
 
         // Post accounting: DR Cash, CR AR
-        AccountingService::onPaymentReceived($payment, $order);
+        $jeResult = AccountingService::onPaymentReceived($payment, $order);
 
         return ApiResponse::make('Payment received successfully', [
             'order'   => [
