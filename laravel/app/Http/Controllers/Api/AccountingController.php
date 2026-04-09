@@ -470,7 +470,7 @@ class AccountingController extends ApiBaseController
         $otherRows = $returnQuery->union($paymentQuery)
             ->orderBy('date')->orderBy('reference')
             ->get()
-            ->map(fn($r) => (object)array_merge((array)$r, ['items' => []]));
+            ->map(fn($r) => (object)array_merge($r->getAttributes(), ['items' => []]));
 
         // ── Merge + sort + running balance ───────────────────────────────────
         $rows = $salesRows->concat($otherRows)
@@ -610,7 +610,7 @@ class AccountingController extends ApiBaseController
         $otherRows = $returnQuery->union($paymentQuery)
             ->orderBy('date')->orderBy('reference')
             ->get()
-            ->map(fn($r) => (object)array_merge((array)$r, ['items' => [], 'effective_amt' => null]));
+            ->map(fn($r) => (object)array_merge($r->getAttributes(), ['items' => [], 'effective_amt' => null]));
 
         // ── Merge + sort + running balance ───────────────────────────────────
         $rows = $purchaseRows->concat($otherRows)
