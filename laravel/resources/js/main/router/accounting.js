@@ -59,7 +59,7 @@ export default [
                 path: "/admin/accounting/reports/balance-sheet",
                 component: () =>
                     import(
-                        "../views/accounting/reports/balance-sheet.vue"
+                        "../views/accounting/reports/balance-sheet-dashboard.vue"
                     ),
                 name: "admin.accounting.balance_sheet",
                 meta: {
@@ -69,12 +69,12 @@ export default [
                 },
             },
             {
-                path: "/admin/accounting/reports/balance-sheet-dashboard",
+                path: "/admin/accounting/reports/balance-sheet/report",
                 component: () =>
                     import(
-                        "../views/accounting/reports/balance-sheet-dashboard.vue"
+                        "../views/accounting/reports/balance-sheet.vue"
                     ),
-                name: "admin.accounting.balance_sheet_dashboard",
+                name: "admin.accounting.balance_sheet_report",
                 meta: {
                     requireAuth: true,
                     menuParent: "accounting",

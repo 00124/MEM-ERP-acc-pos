@@ -23,6 +23,10 @@
                     <a-button type="primary" size="small" :loading="loading" @click="load">
                         <template #icon><SearchOutlined /></template> Refresh
                     </a-button>
+                    <a-button size="small" type="default" style="font-weight:600;color:#1677ff;border-color:#1677ff"
+                        @click="$router.push({ name: 'admin.accounting.balance_sheet_report' })">
+                        <template #icon><FileTextOutlined /></template> Reports
+                    </a-button>
                     <a-button size="small" @click="print">
                         <template #icon><PrinterOutlined /></template>
                     </a-button>
@@ -188,6 +192,122 @@
                 </div>
             </div>
 
+            <!-- ── Inline Balance Sheet Breakdown ─────────────────────── -->
+            <div class="bsd-card bsd-bk-card">
+                <div class="bsd-bk-header-row">
+                    <div class="bsd-card-title" style="margin-bottom:0">Balance Sheet — Detailed Breakdown</div>
+                    <div class="bsd-bk-badge" :class="isBalanced ? 'bsd-bk-badge-ok' : 'bsd-bk-badge-err'">
+                        <template v-if="isBalanced">✓ Balanced (A = L + E)</template>
+                        <template v-else>⚠ Not Balanced</template>
+                    </div>
+                </div>
+                <div class="bsd-equation-row">
+                    <span class="bsd-eq-chip bsd-eq-assets">Assets &nbsp;<strong>${{ fmtNum(snap.total_assets) }}</strong></span>
+                    <span class="bsd-eq-op">=</span>
+                    <span class="bsd-eq-chip bsd-eq-liab">Liabilities &nbsp;<strong>${{ fmtNum(snap.total_liabilities) }}</strong></span>
+                    <span class="bsd-eq-op">+</span>
+                    <span class="bsd-eq-chip bsd-eq-equity">Equity &nbsp;<strong>${{ fmtNum(snap.total_equity) }}</strong></span>
+                </div>
+
+                <div class="bsd-bk-grid">
+                    <!-- ── Assets column ─── -->
+                    <div class="bsd-bk-col">
+                        <div class="bsd-bk-col-hdr bsd-col-asset">
+                            <span>Assets</span>
+                            <span>${{ fmtNum(snap.total_assets) }}</span>
+                        </div>
+
+                        <div class="bsd-bk-group-label">Current Assets</div>
+                        <div v-for="row in currentAssets" :key="row.id" class="bsd-bk-row">
+                            <span class="bsd-bk-code">{{ row.account_code }}</span>
+                            <span class="bsd-bk-name">{{ row.account_name }}</span>
+                            <span class="bsd-bk-amt bsd-c-blue">${{ fmtNum(row.balance) }}</span>
+                        </div>
+                        <div v-if="!currentAssets.length" class="bsd-bk-empty">—</div>
+                        <div class="bsd-bk-subtotal">
+                            <span>Total Current Assets</span>
+                            <span class="bsd-c-blue">${{ fmtNum(totalCurrentAssets) }}</span>
+                        </div>
+
+                        <div class="bsd-bk-group-label">Non-Current Assets</div>
+                        <div v-for="row in nonCurrentAssets" :key="row.id" class="bsd-bk-row">
+                            <span class="bsd-bk-code">{{ row.account_code }}</span>
+                            <span class="bsd-bk-name">{{ row.account_name }}</span>
+                            <span class="bsd-bk-amt bsd-c-blue">${{ fmtNum(row.balance) }}</span>
+                        </div>
+                        <div v-if="!nonCurrentAssets.length" class="bsd-bk-empty">—</div>
+                        <div class="bsd-bk-subtotal">
+                            <span>Total Non-Current Assets</span>
+                            <span class="bsd-c-blue">${{ fmtNum(totalNonCurrentAssets) }}</span>
+                        </div>
+
+                        <div class="bsd-bk-total bsd-total-assets">
+                            <span>Total Assets</span>
+                            <span>${{ fmtNum(snap.total_assets) }}</span>
+                        </div>
+                    </div>
+
+                    <!-- ── Liabilities + Equity column ─── -->
+                    <div class="bsd-bk-col">
+                        <!-- Liabilities -->
+                        <div class="bsd-bk-col-hdr bsd-col-liab">
+                            <span>Liabilities</span>
+                            <span>${{ fmtNum(snap.total_liabilities) }}</span>
+                        </div>
+
+                        <div class="bsd-bk-group-label">Current Liabilities</div>
+                        <div v-for="row in currentLiabilities" :key="row.id" class="bsd-bk-row">
+                            <span class="bsd-bk-code">{{ row.account_code }}</span>
+                            <span class="bsd-bk-name">{{ row.account_name }}</span>
+                            <span class="bsd-bk-amt bsd-c-red">${{ fmtNum(Math.abs(row.balance)) }}</span>
+                        </div>
+                        <div v-if="!currentLiabilities.length" class="bsd-bk-empty">—</div>
+                        <div class="bsd-bk-subtotal">
+                            <span>Total Current Liabilities</span>
+                            <span class="bsd-c-red">${{ fmtNum(totalCurrentLiabilities) }}</span>
+                        </div>
+
+                        <div class="bsd-bk-group-label">Long-Term Liabilities</div>
+                        <div v-for="row in longTermLiabilities" :key="row.id" class="bsd-bk-row">
+                            <span class="bsd-bk-code">{{ row.account_code }}</span>
+                            <span class="bsd-bk-name">{{ row.account_name }}</span>
+                            <span class="bsd-bk-amt bsd-c-red">${{ fmtNum(Math.abs(row.balance)) }}</span>
+                        </div>
+                        <div v-if="!longTermLiabilities.length" class="bsd-bk-empty">—</div>
+                        <div class="bsd-bk-subtotal">
+                            <span>Total Long-Term Liabilities</span>
+                            <span class="bsd-c-red">${{ fmtNum(totalLongTermLiabilities) }}</span>
+                        </div>
+                        <div class="bsd-bk-total bsd-total-liab">
+                            <span>Total Liabilities</span>
+                            <span>${{ fmtNum(snap.total_liabilities) }}</span>
+                        </div>
+
+                        <!-- Equity -->
+                        <div class="bsd-bk-col-hdr bsd-col-equity" style="margin-top:16px">
+                            <span>Equity</span>
+                            <span>${{ fmtNum(snap.total_equity) }}</span>
+                        </div>
+                        <div v-for="row in equityBreakRows" :key="row.id" class="bsd-bk-row">
+                            <span class="bsd-bk-code">{{ row.account_code }}</span>
+                            <span class="bsd-bk-name">{{ row.account_name }}</span>
+                            <span class="bsd-bk-amt bsd-c-purple">${{ fmtNum(Math.abs(row.balance)) }}</span>
+                        </div>
+                        <div v-if="!equityBreakRows.length" class="bsd-bk-empty">—</div>
+                        <div class="bsd-bk-total bsd-total-equity">
+                            <span>Total Equity</span>
+                            <span>${{ fmtNum(snap.total_equity) }}</span>
+                        </div>
+
+                        <!-- L + E check -->
+                        <div class="bsd-bk-le-check" :class="isBalanced ? 'bsd-bk-le-ok' : 'bsd-bk-le-err'">
+                            <span>Total Liabilities + Equity</span>
+                            <span>${{ fmtNum(+snap.total_liabilities + +snap.total_equity) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ── Yearly Financial Table ──────────────────────────────── -->
             <div class="bsd-card bsd-yearly-card">
                 <div class="bsd-card-title">Overall Financial Statement <InfoCircleOutlined class="bsd-info" /></div>
@@ -244,7 +364,7 @@ import { BarChart } from 'vue-chart-3';
 import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
 import {
-    BarChartOutlined, SearchOutlined, PrinterOutlined, InfoCircleOutlined,
+    BarChartOutlined, SearchOutlined, PrinterOutlined, InfoCircleOutlined, FileTextOutlined,
 } from '@ant-design/icons-vue';
 
 /* ── SVG Gauge component (render-fn, no runtime compiler needed) ──── */
@@ -277,7 +397,7 @@ const Gauge = defineComponent({
 export default defineComponent({
     components: {
         AdminPageHeader, BarChart, Gauge,
-        BarChartOutlined, SearchOutlined, PrinterOutlined, InfoCircleOutlined,
+        BarChartOutlined, SearchOutlined, PrinterOutlined, InfoCircleOutlined, FileTextOutlined,
     },
     setup() {
         const axiosAdmin = window.axiosAdmin;
@@ -300,6 +420,22 @@ export default defineComponent({
 
         const assetRows = computed(() => (snap.value.data || []).filter(x => x.account_type === 'Asset'));
         const liabRows  = computed(() => (snap.value.data || []).filter(x => x.account_type === 'Liability'));
+
+        /* ── Breakdown helpers ───────────────────────────────────────── */
+        const isCurAsset = (n) => /cash|receivable|inventor|stock|prepaid|current|advance|deposit/i.test(n);
+        const isCurLiab  = (n) => /payable|accrued|current|tax|advance rec|deferred rev|short.term/i.test(n);
+
+        const currentAssets       = computed(() => assetRows.value.filter(r => isCurAsset(r.account_name)));
+        const nonCurrentAssets    = computed(() => assetRows.value.filter(r => !isCurAsset(r.account_name)));
+        const currentLiabilities  = computed(() => liabRows.value.filter(r => isCurLiab(r.account_name)));
+        const longTermLiabilities = computed(() => liabRows.value.filter(r => !isCurLiab(r.account_name)));
+        const equityBreakRows     = computed(() => (snap.value.data || []).filter(x => x.account_type === 'Equity'));
+
+        const totalCurrentAssets      = computed(() => currentAssets.value.reduce((s, x) => s + Number(x.balance), 0));
+        const totalNonCurrentAssets   = computed(() => nonCurrentAssets.value.reduce((s, x) => s + Number(x.balance), 0));
+        const totalCurrentLiabilities = computed(() => currentLiabilities.value.reduce((s, x) => s + Math.abs(Number(x.balance)), 0));
+        const totalLongTermLiabilities= computed(() => longTermLiabilities.value.reduce((s, x) => s + Math.abs(Number(x.balance)), 0));
+        const isBalanced = computed(() => Math.abs(Number(snap.value.total_assets || 0) - (Number(snap.value.total_liabilities || 0) + Number(snap.value.total_equity || 0))) < 1);
 
         const barOpts = {
             responsive: true, maintainAspectRatio: false,
@@ -387,6 +523,9 @@ export default defineComponent({
             loading, data, filters, yearOptions,
             snap, r, charts, yearlyTable,
             assetRows, liabRows,
+            currentAssets, nonCurrentAssets, currentLiabilities, longTermLiabilities,
+            equityBreakRows, totalCurrentAssets, totalNonCurrentAssets,
+            totalCurrentLiabilities, totalLongTermLiabilities, isBalanced,
             arApChartData, cashChartData,
             barOpts, cashBarOpts,
             gaugeMax, fmtNum, load, print,
@@ -482,6 +621,46 @@ export default defineComponent({
 .bsd-yearly-tbl tbody tr:hover { background: #F8F9FB; }
 .bsd-empty { text-align: center; color: #ADB4D2; padding: 24px; }
 
+/* ── Breakdown section ────────────────────────────────────────── */
+.bsd-bk-card { padding: 18px 20px; }
+.bsd-bk-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.bsd-bk-badge { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; }
+.bsd-bk-badge-ok  { background: #d6fff4; color: #0CAB7C; }
+.bsd-bk-badge-err { background: #fff1f0; color: #FF4D4F; }
+
+.bsd-equation-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; padding: 12px; background: #F8F9FB; border-radius: 8px; border: 1px solid #E3E6EF; }
+.bsd-eq-chip { font-size: 12px; padding: 5px 12px; border-radius: 6px; font-weight: 600; }
+.bsd-eq-assets { background: #e6f4ff; color: #1677ff; }
+.bsd-eq-liab   { background: #fff1f0; color: #FF4D4F; }
+.bsd-eq-equity { background: #f5f0ff; color: #722ed1; }
+.bsd-eq-op { font-size: 16px; font-weight: 700; color: #ADB4D2; }
+
+.bsd-bk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.bsd-bk-col { display: flex; flex-direction: column; }
+.bsd-bk-col-hdr { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; }
+.bsd-col-asset  { background: #e6f4ff; color: #1677ff; }
+.bsd-col-liab   { background: #fff1f0; color: #FF4D4F; }
+.bsd-col-equity { background: #f5f0ff; color: #722ed1; }
+
+.bsd-bk-group-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #ADB4D2; padding: 8px 4px 4px; border-bottom: 1px dashed #E3E6EF; margin-bottom: 4px; }
+.bsd-bk-row { display: flex; align-items: center; gap: 8px; padding: 5px 4px; border-bottom: 1px solid #F1F2F6; font-size: 12px; color: #272B41; }
+.bsd-bk-code { font-size: 10px; background: #F4F5F7; padding: 1px 5px; border-radius: 3px; color: #ADB4D2; flex-shrink: 0; }
+.bsd-bk-name { flex: 1; }
+.bsd-bk-amt { font-weight: 600; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.bsd-bk-empty { font-size: 12px; color: #ADB4D2; padding: 6px 4px; font-style: italic; }
+.bsd-bk-subtotal { display: flex; justify-content: space-between; padding: 7px 8px; background: #F8F9FB; border-radius: 4px; font-size: 12px; font-weight: 600; color: #5A5F7D; margin: 6px 0; }
+.bsd-bk-total { display: flex; justify-content: space-between; padding: 9px 10px; border-radius: 6px; font-size: 13px; font-weight: 700; margin-top: 8px; }
+.bsd-total-assets { background: #e6f4ff; color: #1677ff; }
+.bsd-total-liab   { background: #fff1f0; color: #FF4D4F; }
+.bsd-total-equity { background: #f5f0ff; color: #722ed1; }
+.bsd-c-blue   { color: #1677ff; }
+.bsd-c-red    { color: #FF4D4F; }
+.bsd-c-purple { color: #722ed1; }
+
+.bsd-bk-le-check { display: flex; justify-content: space-between; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-top: 12px; border: 1.5px solid; }
+.bsd-bk-le-ok  { background: #d6fff4; border-color: #87e8ca; color: #0CAB7C; }
+.bsd-bk-le-err { background: #fff1f0; border-color: #ffccc7; color: #FF4D4F; }
+
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 1100px) {
     .bsd-kpi-row { grid-template-columns: repeat(3, 1fr); }
@@ -494,5 +673,6 @@ export default defineComponent({
     .bsd-kpi-row { grid-template-columns: 1fr 1fr; }
     .bsd-main-row { grid-template-columns: 1fr; }
     .bsd-gauge-row { grid-template-columns: 1fr 1fr; }
+    .bsd-bk-grid { grid-template-columns: 1fr; }
 }
 </style>

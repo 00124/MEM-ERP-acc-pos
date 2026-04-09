@@ -1,17 +1,20 @@
 <template>
     <AdminPageHeader>
         <template #header>
-            <a-page-header title="Balance Sheet" class="p-0">
+            <a-page-header title="Balance Sheet — Detailed Report" class="p-0">
                 <template #extra>
+                    <a-button @click="$router.push({ name: 'admin.accounting.balance_sheet' })" style="border-radius:8px;font-weight:600">
+                        <LeftOutlined /> Dashboard
+                    </a-button>
                     <a-button @click="print" style="border-radius:8px;font-weight:600"><PrinterOutlined /> Print</a-button>
                 </template>
             </a-page-header>
         </template>
         <template #breadcrumb>
             <a-breadcrumb separator="-" style="font-size:12px">
-                <a-breadcrumb-item><router-link :to="{ name: 'admin.dashboard.index' }">Dashboard</router-link></a-breadcrumb-item>
-                <a-breadcrumb-item>Accounting</a-breadcrumb-item>
-                <a-breadcrumb-item>Balance Sheet</a-breadcrumb-item>
+                <a-breadcrumb-item><router-link :to="{ name: 'admin.dashboard.index' }">Home</router-link></a-breadcrumb-item>
+                <a-breadcrumb-item><router-link :to="{ name: 'admin.accounting.balance_sheet' }">Balance Sheet</router-link></a-breadcrumb-item>
+                <a-breadcrumb-item>Detailed Report</a-breadcrumb-item>
             </a-breadcrumb>
         </template>
     </AdminPageHeader>
@@ -208,7 +211,7 @@ import { defineComponent, ref, computed, onMounted } from 'vue';
 import dayjs from 'dayjs';
 import AdminPageHeader from '../../../../common/layouts/AdminPageHeader.vue';
 import {
-    PrinterOutlined, SearchOutlined,
+    PrinterOutlined, SearchOutlined, LeftOutlined,
     BankOutlined, CreditCardOutlined, PieChartOutlined,
     CheckCircleOutlined, WarningOutlined, CalendarOutlined,
 } from '@ant-design/icons-vue';
@@ -216,7 +219,7 @@ import {
 export default defineComponent({
     components: {
         AdminPageHeader,
-        PrinterOutlined, SearchOutlined,
+        PrinterOutlined, SearchOutlined, LeftOutlined,
         BankOutlined, CreditCardOutlined, PieChartOutlined,
         CheckCircleOutlined, WarningOutlined, CalendarOutlined,
     },
