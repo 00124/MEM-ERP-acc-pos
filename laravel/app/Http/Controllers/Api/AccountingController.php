@@ -411,10 +411,10 @@ class AccountingController extends ApiBaseController
             ->where('cancelled', 0)
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->when($userId, fn($q) => $q->where('user_id', $userId))
-            ->with(['orderItems' => fn($q) => $q->with('product:id,name,item_code')])
+            ->with(['items' => fn($q) => $q->with('product:id,name,item_code')])
             ->orderBy('order_date')
             ->orderBy('invoice_number')
-            ->get(['id', 'xid', 'order_date', 'invoice_number', 'total', 'user_id']);
+            ->get(['id', 'order_date', 'invoice_number', 'total', 'user_id']);
 
         $salesRows = $salesOrders->map(fn($o) => (object)[
             'date'      => $o->order_date,
@@ -424,7 +424,7 @@ class AccountingController extends ApiBaseController
             'debit'     => $o->total,
             'credit'    => 0,
             'user_id'   => $o->user_id,
-            'items'     => $o->orderItems->map(fn($i) => [
+            'items'     => $o->items->map(fn($i) => [
                 'name'      => $i->product->name ?? '-',
                 'item_code' => $i->product->item_code ?? '',
                 'qty'       => (float)$i->quantity,
@@ -545,10 +545,10 @@ class AccountingController extends ApiBaseController
             ->where('cancelled', 0)
             ->whereBetween('order_date', [$dateFrom, $dateTo])
             ->when($userId, fn($q) => $q->where('user_id', $userId))
-            ->with(['orderItems' => fn($q) => $q->with('product:id,name,item_code')])
+            ->with(['items' => fn($q) => $q->with('product:id,name,item_code')])
             ->orderBy('order_date')
             ->orderBy('invoice_number')
-            ->get(['id', 'xid', 'order_date', 'invoice_number', 'total', 'user_id', 'order_type']);
+            ->get(['id', 'order_date', 'invoice_number', 'total', 'user_id', 'order_type']);
 
         $purchaseRows = $purchaseOrders->map(function ($o) {
             $effective = $this->effectivePurchaseTotal($o->id, (float)$o->total);
@@ -563,7 +563,7 @@ class AccountingController extends ApiBaseController
                 'user_id'       => $o->user_id,
                 'effective_amt' => $effective,
                 'recorded_amt'  => (float)$o->total,
-                'items'         => $o->orderItems->map(fn($i) => [
+                'items'         => $o->items->map(fn($i) => [
                     'name'      => $i->product->name ?? '-',
                     'item_code' => $i->product->item_code ?? '',
                     'qty'       => (float)$i->quantity,
