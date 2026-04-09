@@ -11,6 +11,7 @@ use App\Http\Requests\Api\OrderPayment\DeleteRequest;
 use App\Models\Order;
 use App\Models\OrderPayment;
 use App\Models\Payment;
+use App\Services\AccountingService;
 use Examyou\RestAPI\Exceptions\ApiException;
 use Examyou\RestAPI\Exceptions\UnauthorizedException;
 
@@ -133,6 +134,11 @@ class OrderPaymentController extends ApiBaseController
 
         // Updating Warehouse History
         Common::updateWarehouseHistory('payment', $payment, "add_edit");
+
+        // Auto-generate Journal Entry for this payment
+        if ($payment) {
+            AccountingService::handlePayment($payment);
+        }
 
         return Common::updateOrderAmount($orderPayment->order_id);
     }

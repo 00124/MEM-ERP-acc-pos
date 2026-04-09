@@ -67,9 +67,6 @@
                     <SearchOutlined v-else />
                     {{ loading ? 'Loading…' : 'Generate' }}
                 </button>
-                <button v-if="generated" class="sl-back-btn" @click="backfillJEs" :disabled="backfilling">
-                    <SyncOutlined :spin="backfilling" /> Backfill JEs
-                </button>
             </div>
         </div>
     </div>
@@ -273,18 +270,18 @@
 <script>
 import { defineComponent, ref, computed, onMounted } from 'vue';
 import {
-    PrinterOutlined, SearchOutlined, ShoppingCartOutlined, SyncOutlined,
+    PrinterOutlined, SearchOutlined, ShoppingCartOutlined,
     FileTextOutlined, ShopOutlined, CalendarOutlined, DollarOutlined,
     CheckCircleOutlined, WalletOutlined, WarningOutlined, BarChartOutlined,
     ArrowUpOutlined, ArrowDownOutlined, RiseOutlined, FallOutlined,
 } from '@ant-design/icons-vue';
-import { message, notification } from 'ant-design-vue';
+import { message } from 'ant-design-vue';
 import AdminPageHeader from '../../../../common/layouts/AdminPageHeader.vue';
 import dayjs from 'dayjs';
 
 export default defineComponent({
     components: {
-        AdminPageHeader, PrinterOutlined, SearchOutlined, ShoppingCartOutlined, SyncOutlined,
+        AdminPageHeader, PrinterOutlined, SearchOutlined, ShoppingCartOutlined,
         FileTextOutlined, ShopOutlined, CalendarOutlined, DollarOutlined,
         CheckCircleOutlined, WalletOutlined, WarningOutlined, BarChartOutlined,
         ArrowUpOutlined, ArrowDownOutlined, RiseOutlined, FallOutlined,
@@ -293,7 +290,6 @@ export default defineComponent({
         const axiosAdmin  = window.axiosAdmin;
         const loading     = ref(false);
         const generated   = ref(false);
-        const backfilling = ref(false);
         const suppliers   = ref([]);
         const filters     = ref({ user_id: null, date_from: dayjs().startOf('year'), date_to: dayjs() });
         const reportData  = ref({ rows: [], opening_balance: 0, supplier: null, date_from: '', date_to: '' });
@@ -348,24 +344,13 @@ export default defineComponent({
             finally { loading.value = false; }
         };
 
-        const backfillJEs = async () => {
-            backfilling.value = true;
-            try {
-                const res = await axiosAdmin.post('accounting/backfill-jes');
-                const d = res.data;
-                notification.success({ message:'JE Backfill Complete', description:`Generated: ${d.generated} | Skipped: ${d.skipped} | Failed: ${d.failed?.length??0}`, duration:8 });
-                if (d.warnings?.length) notification.warning({ message:'Backfill Warnings', description: d.warnings.slice(0,5).join('\n'), duration:0 });
-            } catch(e) { message.error('Backfill failed'); }
-            finally { backfilling.value = false; }
-        };
-
         const print = () => window.print();
         onMounted(loadSuppliers);
 
         return {
-            loading, generated, backfilling, suppliers, filters, reportData, tableRows, columns, expandable, expandedRowKeys, hasZeroTotalGrns,
+            loading, generated, suppliers, filters, reportData, tableRows, columns, expandable, expandedRowKeys, hasZeroTotalGrns,
             fmt, formatDate, filterOption, typePill, rowClass, openingBalance, totalDebit, totalCredit, closingBalance,
-            load, print, backfillJEs,
+            load, print,
         };
     }
 });
