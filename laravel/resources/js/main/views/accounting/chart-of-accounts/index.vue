@@ -417,16 +417,19 @@ export default defineComponent({
 .coa-modal .ant-modal-body { padding: 28px !important; }
 .coa-modal-header {
     display: flex; align-items: center; gap: 14px;
-    background: linear-gradient(135deg, #064e3b, #059669);
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
     margin: -28px -28px 24px; padding: 22px 28px;
 }
 .coa-modal-icon {
     width: 44px; height: 44px; border-radius: 12px;
-    background: rgba(255,255,255,.2); display: flex; align-items: center;
+    background: linear-gradient(135deg, #059669, #047857);
+    display: flex; align-items: center;
     justify-content: center; font-size: 20px; color: #fff;
+    box-shadow: 0 4px 12px rgba(5,150,105,.25);
 }
-.coa-modal-title { font-size: 18px; font-weight: 800; color: #fff; }
-.coa-modal-sub { font-size: 12px; color: rgba(255,255,255,.75); margin-top: 2px; }
+.coa-modal-title { font-size: 18px; font-weight: 800; color: #1e293b; }
+.coa-modal-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
 .coa-modal-form .ant-form-item-label label { font-size: 12px; font-weight: 700; color: #475569; }
 .coa-form-input { border-radius: 8px !important; }
 .coa-form-sel .ant-select-selector { border-radius: 8px !important; }
