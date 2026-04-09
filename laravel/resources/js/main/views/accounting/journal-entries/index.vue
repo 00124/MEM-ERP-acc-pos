@@ -1,12 +1,7 @@
 <template>
     <AdminPageHeader>
         <template #header>
-            <a-page-header title="Journal Entries" class="p-0">
-                <template #extra>
-                    <button class="je-hdr-btn je-hdr-ob" @click="openObModal"><BankOutlined /> Opening Balance</button>
-                    <button class="je-hdr-btn je-hdr-new" @click="openAddModal"><PlusOutlined /> New Entry</button>
-                </template>
-            </a-page-header>
+            <a-page-header title="Journal Entries" class="p-0" />
         </template>
         <template #breadcrumb>
             <a-breadcrumb separator="/" style="font-size:12px">
@@ -17,75 +12,88 @@
         </template>
     </AdminPageHeader>
 
-    <!-- ── Hero ─────────────────────────────────────────────────────── -->
-    <div class="je-hero">
-        <div class="je-hero-glow je-glow-1"></div>
-        <div class="je-hero-glow je-glow-2"></div>
+    <!-- ── Filters bar (matches Sales page layout) ───────────────────── -->
+    <admin-page-filters>
+        <a-row :gutter="[16, 16]">
+            <!-- Left: action buttons -->
+            <a-col :xs="24" :sm="24" :md="12" :lg="10" :xl="10">
+                <a-space>
+                    <a-button type="primary" @click="openAddModal">
+                        <template #icon><PlusOutlined /></template>
+                        New Entry
+                    </a-button>
+                    <a-button @click="openObModal" style="color:#7c3aed;border-color:#ddd6fe;">
+                        <template #icon><BankOutlined /></template>
+                        Opening Balance
+                    </a-button>
+                </a-space>
+            </a-col>
 
-        <div class="je-hero-top">
-            <div class="je-hero-brand">
-                <span class="je-hero-icon"><AccountBookOutlined /></span>
-                <div>
-                    <h1 class="je-h1">Journal Entries</h1>
-                    <p class="je-sub">Double-entry accounting ledger</p>
-                </div>
+            <!-- Right: search + date range -->
+            <a-col :xs="24" :sm="24" :md="12" :lg="14" :xl="14">
+                <a-row :gutter="[16, 16]" justify="end">
+                    <a-col :xs="24" :sm="12" :md="10" :lg="9" :xl="8">
+                        <a-input-search
+                            v-model:value="searchString"
+                            placeholder="Search entry #, description…"
+                            allow-clear
+                            style="width:100%"
+                            @search="loadEntries"
+                            @change="e => { if (!e.target.value) loadEntries(); }"
+                        />
+                    </a-col>
+                    <a-col :xs="24" :sm="12" :md="10" :lg="9" :xl="8">
+                        <a-range-picker v-model:value="dateRange" style="width:100%" @change="loadEntries" />
+                    </a-col>
+                </a-row>
+            </a-col>
+        </a-row>
+
+        <!-- Health KPI chips -->
+        <div v-if="health" class="je-kpi-row">
+            <div class="je-kpi">
+                <div class="je-kpi-val">{{ health.total_entries }}</div>
+                <div class="je-kpi-lbl">Total Entries</div>
             </div>
-
-            <!-- Health KPIs -->
-            <div v-if="health" class="je-kpi-row">
-                <div class="je-kpi je-kpi-glass">
-                    <div class="je-kpi-val">{{ health.total_entries }}</div>
-                    <div class="je-kpi-lbl">Total Entries</div>
+            <div class="je-kpi">
+                <div class="je-kpi-val je-kpi-ok">{{ health.balanced }}</div>
+                <div class="je-kpi-lbl">Balanced</div>
+            </div>
+            <div class="je-kpi" :class="health.imbalanced?.length ? 'je-kpi-danger' : ''">
+                <div class="je-kpi-val" :class="health.imbalanced?.length ? 'je-kpi-red' : 'je-kpi-ok'">
+                    {{ health.imbalanced?.length ?? 0 }}
                 </div>
-                <div class="je-kpi je-kpi-glass">
-                    <div class="je-kpi-val je-kpi-ok">{{ health.balanced }}</div>
-                    <div class="je-kpi-lbl">Balanced</div>
-                </div>
-                <div class="je-kpi je-kpi-glass" :class="health.imbalanced?.length ? 'je-kpi-danger' : ''">
-                    <div class="je-kpi-val" :class="health.imbalanced?.length ? 'je-kpi-red' : 'je-kpi-ok'">
-                        {{ health.imbalanced?.length ?? 0 }}
-                    </div>
-                    <div class="je-kpi-lbl">Imbalanced</div>
-                </div>
-                <div class="je-kpi je-kpi-glass">
-                    <div class="je-kpi-val" :class="health.je_coverage_pct < 100 ? 'je-kpi-warn' : 'je-kpi-ok'">{{ health.je_coverage_pct }}%</div>
-                    <div class="je-kpi-lbl">Coverage</div>
-                </div>
-                <div class="je-kpi je-kpi-glass">
-                    <div class="je-kpi-val" :class="health.cogs_entries === 0 ? 'je-kpi-red' : 'je-kpi-ok'">{{ health.cogs_entries }}</div>
-                    <div class="je-kpi-lbl">COGS Entries</div>
-                </div>
+                <div class="je-kpi-lbl">Imbalanced</div>
+            </div>
+            <div class="je-kpi">
+                <div class="je-kpi-val" :class="health.je_coverage_pct < 100 ? 'je-kpi-warn' : 'je-kpi-ok'">{{ health.je_coverage_pct }}%</div>
+                <div class="je-kpi-lbl">Coverage</div>
+            </div>
+            <div class="je-kpi">
+                <div class="je-kpi-val" :class="health.cogs_entries === 0 ? 'je-kpi-red' : 'je-kpi-ok'">{{ health.cogs_entries }}</div>
+                <div class="je-kpi-lbl">COGS Entries</div>
             </div>
         </div>
 
-        <!-- Imbalanced alert -->
+        <!-- Imbalance alert -->
         <div v-if="health?.imbalanced?.length" class="je-imbalance-bar">
             <ExclamationCircleOutlined class="je-imb-icon" />
             <span><b>{{ health.imbalanced.length }} imbalanced</b> entries detected: {{ health.imbalanced.map(e => e.entry_number).join(', ') }}</span>
         </div>
+    </admin-page-filters>
 
-        <!-- Filter bar -->
-        <div class="je-filter-bar">
-            <div class="je-filter-field">
-                <label class="je-filter-lbl"><CalendarOutlined /> Date Range</label>
-                <a-range-picker v-model:value="dateRange" class="je-filter-input" @change="loadEntries" />
-            </div>
-            <div class="je-filter-hint">
-                <DownOutlined style="font-size:10px;margin-right:4px" />
-                Click any row to expand entry details
-            </div>
-        </div>
-    </div>
-
-    <!-- ── Table Card ─────────────────────────────────────────────── -->
-    <div class="je-table-card">
-        <div class="je-table-hdr">
-            <div class="je-table-title">
-                <span class="je-tbl-dot"></span>
-                Ledger
-                <span class="je-tbl-count">{{ pagination.total }} entries</span>
-            </div>
-        </div>
+    <!-- ── Table (matches Sales page layout) ─────────────────────────── -->
+    <admin-page-table-content>
+        <!-- Status tabs -->
+        <a-row>
+            <a-col :span="24">
+                <a-tabs v-model:activeKey="statusFilter" @change="() => { pagination.current = 1; loadEntries(); }">
+                    <a-tab-pane key="all" tab="All Entries" />
+                    <a-tab-pane key="posted" tab="Posted" />
+                    <a-tab-pane key="draft" tab="Draft" />
+                </a-tabs>
+            </a-col>
+        </a-row>
 
         <a-spin :spinning="loading">
             <a-table
@@ -95,6 +103,7 @@
                 @change="handleTableChange"
                 rowKey="id"
                 size="middle"
+                :bordered="true"
                 :scroll="{ x: 1100 }"
                 :expandable="expandable"
                 :rowClassName="() => 'je-main-row'"
@@ -139,7 +148,6 @@
                 <!-- ── Expanded Row ── -->
                 <template #expandedRowRender="{ record }">
                     <div class="je-expanded">
-
                         <!-- Entry header strip -->
                         <div class="je-exp-strip">
                             <div class="je-exp-num"><FileTextOutlined /> {{ record.entry_number }}</div>
@@ -153,7 +161,6 @@
                         </div>
 
                         <div class="je-exp-body">
-
                             <!-- LEFT: Ledger Lines -->
                             <div class="je-exp-pane je-pane-ledger">
                                 <div class="je-pane-title"><AccountBookOutlined /> Ledger Lines</div>
@@ -234,7 +241,7 @@
                 </template>
             </a-table>
         </a-spin>
-    </div>
+    </admin-page-table-content>
 
     <!-- ── New Journal Entry Modal ──────────────────────────────── -->
     <a-modal v-model:open="addModalVisible" :footer="null" width="900px" class="je-modal" :bodyStyle="{ padding:0 }">
@@ -246,7 +253,6 @@
         </template>
 
         <div class="je-modal-body">
-            <!-- Meta row -->
             <div class="je-modal-meta">
                 <div class="je-modal-field">
                     <label class="je-modal-lbl">Date <span class="je-req">*</span></label>
@@ -262,7 +268,6 @@
                 </div>
             </div>
 
-            <!-- Lines table -->
             <div class="je-modal-lines">
                 <div class="je-modal-lines-hd">
                     <span class="je-lines-title"><AccountBookOutlined /> Ledger Lines</span>
@@ -394,7 +399,7 @@ import { defineComponent, ref, computed, onMounted } from 'vue';
 import {
     PlusOutlined, DeleteOutlined, MinusCircleOutlined,
     ShoppingOutlined, AccountBookOutlined, FileTextOutlined,
-    CalendarOutlined, LinkOutlined, CheckCircleOutlined, DownOutlined,
+    CalendarOutlined, LinkOutlined, CheckCircleOutlined,
     BankOutlined, ExclamationCircleOutlined, InfoCircleOutlined,
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
@@ -406,7 +411,7 @@ export default defineComponent({
         AdminPageHeader,
         PlusOutlined, DeleteOutlined, MinusCircleOutlined,
         ShoppingOutlined, AccountBookOutlined, FileTextOutlined,
-        CalendarOutlined, LinkOutlined, CheckCircleOutlined, DownOutlined,
+        CalendarOutlined, LinkOutlined, CheckCircleOutlined,
         BankOutlined, ExclamationCircleOutlined, InfoCircleOutlined,
     },
     setup() {
@@ -416,6 +421,8 @@ export default defineComponent({
         const entries       = ref([]);
         const allAccounts   = ref([]);
         const dateRange     = ref(null);
+        const searchString  = ref('');
+        const statusFilter  = ref('all');
         const pagination    = ref({ current: 1, pageSize: 20, total: 0 });
         const addModalVisible = ref(false);
 
@@ -467,13 +474,13 @@ export default defineComponent({
         const isBalanced  = computed(() => Math.abs(totalDebit.value - totalCredit.value) < 0.01 && totalDebit.value > 0);
 
         const columns = [
-            { title: 'Entry #',            key: 'entry_number', width: 200 },
-            { title: 'Date',               key: 'entry_date',   width: 115 },
-            { title: 'Description',        key: 'description' },
-            { title: 'Reference',          key: 'reference',    width: 130 },
-            { title: 'Total (PKR)',         key: 'total_debit',  width: 145, align: 'right' },
-            { title: 'Status',             key: 'status',       width: 100 },
-            { title: '',                   key: 'action',       width: 56,  fixed: 'right' },
+            { title: 'Entry #',     key: 'entry_number', width: 200 },
+            { title: 'Date',        key: 'entry_date',   width: 115 },
+            { title: 'Description', key: 'description' },
+            { title: 'Reference',   key: 'reference',    width: 130 },
+            { title: 'Total (PKR)', key: 'total_debit',  width: 145, align: 'right' },
+            { title: 'Status',      key: 'status',       width: 100 },
+            { title: '',            key: 'action',       width: 56,  fixed: 'right' },
         ];
 
         const expandedKeys = ref([]);
@@ -501,6 +508,8 @@ export default defineComponent({
             try {
                 const params = { per_page: pagination.value.pageSize, page: pagination.value.current };
                 if (dateRange.value?.[0]) { params.date_from = dateRange.value[0].format('YYYY-MM-DD'); params.date_to = dateRange.value[1].format('YYYY-MM-DD'); }
+                if (statusFilter.value && statusFilter.value !== 'all') params.status = statusFilter.value;
+                if (searchString.value?.trim()) params.search = searchString.value.trim();
                 const res = await axiosAdmin.get('accounting/journal-entries', { params });
                 entries.value = res.data.data || res.data;
                 pagination.value.total = res.data.total || entries.value.length;
@@ -540,7 +549,7 @@ export default defineComponent({
         onMounted(() => { loadAccounts(); loadEntries(); loadHealth(); });
 
         return {
-            loading, saving, entries, allAccounts, dateRange, pagination,
+            loading, saving, entries, allAccounts, dateRange, searchString, statusFilter, pagination,
             addModalVisible, entryForm, totalDebit, totalCredit, isBalanced,
             columns, expandable, expandedKeys,
             formatDate, formatAmount, filterAccount,
@@ -556,49 +565,11 @@ export default defineComponent({
 <style scoped>
 .r { text-align: right; }
 
-/* ══ HEADER BUTTONS ════════════════════════════════════════════ */
-.je-hdr-btn {
-    display: inline-flex; align-items: center; gap: 7px;
-    border: none; border-radius: 9px; cursor: pointer;
-    font-size: 13px; font-weight: 700; height: 34px; padding: 0 16px;
-    transition: all .2s;
-}
-.je-hdr-ob  { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; margin-right: 8px; }
-.je-hdr-ob:hover  { background: #ede9fe; }
-.je-hdr-new { background: #1677ff; border-color: #1677ff; color: #fff; border-radius: 8px !important; font-weight: 700; }
-.je-hdr-new:hover { background: #0958d9 !important; border-color: #0958d9 !important; }
-
-/* ══ HERO ══════════════════════════════════════════════════════ */
-.je-hero {
-    position: relative; overflow: hidden;
-    border-radius: 0; margin-bottom: 0;
-    padding: 24px 32px 0;
-    background: #fff;
-    border-bottom: 1px solid #e2e8f0;
-}
-.je-hero-glow { display:none; }
-.je-glow-1 { display:none; }
-.je-glow-2 { display:none; }
-
-.je-hero-top { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
-.je-hero-brand { display:flex; align-items:center; gap:18px; }
-.je-hero-icon {
-    font-size:24px; color:#fff;
-    background: linear-gradient(135deg, #0d9488, #0f766e);
-    border:none; border-radius:14px;
-    width:54px; height:54px;
-    display:flex; align-items:center; justify-content:center; flex-shrink:0;
-    box-shadow: 0 4px 12px rgba(13,148,136,.3);
-}
-.je-h1  { font-size:22px; font-weight:800; color:#1e293b; margin:0 0 4px; letter-spacing:-.4px; }
-.je-sub { font-size:13px; color:#64748b; margin:0; }
-
-/* KPI chips */
-.je-kpi-row { display:flex; gap:10px; flex-wrap:wrap; }
-.je-kpi { padding:10px 18px; border-radius:12px; text-align:center; min-width:90px; }
-.je-kpi-glass { background:#f8fafc; border:1px solid #e2e8f0; }
+/* ══ KPI CHIPS (inside filters bar) ═══════════════════════════ */
+.je-kpi-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; padding-top:14px; border-top:1px solid #f1f5f9; }
+.je-kpi { padding:8px 16px; border-radius:10px; text-align:center; min-width:86px; background:#f8fafc; border:1px solid #e2e8f0; }
 .je-kpi-danger { background:#fef2f2!important; border-color:#fecaca!important; animation:je-pulse 1.6s infinite; }
-.je-kpi-val  { font-size:18px; font-weight:800; color:#1e293b; line-height:1.1; }
+.je-kpi-val  { font-size:17px; font-weight:800; color:#1e293b; line-height:1.1; }
 .je-kpi-lbl  { font-size:10px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.5px; margin-top:3px; }
 .je-kpi-ok   { color:#059669!important; }
 .je-kpi-red  { color:#dc2626!important; }
@@ -608,31 +579,12 @@ export default defineComponent({
 /* Imbalance bar */
 .je-imbalance-bar {
     background:#fef2f2; border:1px solid #fecaca; border-radius:10px;
-    padding:10px 18px; color:#991b1b; font-size:13px; margin-bottom:16px;
+    padding:10px 18px; color:#991b1b; font-size:13px; margin-top:12px;
     display:flex; align-items:center; gap:10px;
 }
 .je-imb-icon { color:#dc2626; font-size:16px; flex-shrink:0; }
 
-/* Filter bar */
-.je-filter-bar {
-    display:flex; align-items:flex-end; justify-content:space-between; gap:16px;
-    background:#f8fafc;
-    border-top:1px solid #e2e8f0;
-    padding:16px 32px 20px; margin:0 -32px;
-}
-.je-filter-field { display:flex; flex-direction:column; gap:5px; }
-.je-filter-lbl   { font-size:11px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.6px; display:flex; align-items:center; gap:5px; }
-.je-filter-input { border-radius:10px!important; }
-.je-filter-hint  { font-size:12px; color:#94a3b8; padding-bottom:2px; display:flex; align-items:center; }
-
-/* ══ TABLE CARD ════════════════════════════════════════════════ */
-.je-table-card { background:#fff; border-radius:18px; border:1px solid #e2e8f0; box-shadow:0 4px 24px rgba(0,0,0,.06); overflow:hidden; }
-.je-table-hdr  { padding:14px 22px; border-bottom:1px solid #f1f5f9; background:#fafbfc; display:flex; align-items:center; }
-.je-table-title { display:flex; align-items:center; gap:9px; font-size:14px; font-weight:700; color:#0f172a; }
-.je-tbl-dot  { width:10px; height:10px; border-radius:50%; background:#0d9488; box-shadow:0 0 0 3px rgba(13,148,136,.2); }
-.je-tbl-count { font-size:11px; font-weight:600; background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:20px; }
-
-/* Table cells */
+/* ══ TABLE CELLS ════════════════════════════════════════════════ */
 :deep(.je-main-row:hover > td) { background:#f0fdfa!important; cursor:pointer; }
 :deep(.ant-table-expanded-row > td) { background:#f8fafc!important; padding:0!important; }
 
@@ -658,7 +610,6 @@ export default defineComponent({
 .je-del-btn:hover { background:#fef2f2; color:#dc2626; }
 
 /* ── Expanded row ── */
-.je-expanded { }
 .je-exp-strip {
     background: linear-gradient(90deg, #0f172a, #134e4a);
     color:#fff; padding:12px 22px;
@@ -719,15 +670,12 @@ export default defineComponent({
     display:flex; align-items:center; gap:10px;
     font-size:15px; font-weight:700; color:#0f172a;
 }
-.je-modal-hd-ob { }
 .je-modal-ico {
     font-size:17px; background:#f0fdfa; color:#0d9488;
     border-radius:8px; width:32px; height:32px;
     display:flex; align-items:center; justify-content:center;
 }
 .je-modal-ico-ob { background:#f5f3ff; color:#7c3aed; }
-
-.je-modal-body { }
 
 .je-ob-info {
     display:flex; align-items:flex-start; gap:10px;
@@ -797,19 +745,19 @@ export default defineComponent({
 .je-cancel-btn:hover { background:#e2e8f0; }
 .je-save-btn {
     display:flex; align-items:center; gap:7px;
-    background:linear-gradient(135deg,#0f766e,#0d9488); color:#fff;
+    background:#1677ff; color:#fff;
     border:none; border-radius:9px;
     font-size:13px; font-weight:700; padding:0 22px; height:36px; cursor:pointer;
-    box-shadow:0 4px 14px rgba(13,148,136,.35); transition:all .2s;
+    box-shadow:0 4px 14px rgba(22,119,255,.35); transition:all .2s;
 }
-.je-save-btn:hover:not(:disabled) { opacity:.9; transform:translateY(-1px); }
+.je-save-btn:hover:not(:disabled) { background:#0958d9; transform:translateY(-1px); }
 .je-save-btn:disabled { opacity:.5; cursor:not-allowed; }
-.je-save-ob { background:linear-gradient(135deg,#5b21b6,#7c3aed)!important; box-shadow:0 4px 14px rgba(124,58,237,.35)!important; }
+.je-save-ob { background:#7c3aed!important; box-shadow:0 4px 14px rgba(124,58,237,.35)!important; }
+.je-save-ob:hover:not(:disabled) { background:#5b21b6!important; }
 
 .je-spinner {
     width:13px; height:13px; border:2px solid rgba(255,255,255,.4);
     border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; display:inline-block;
 }
-.je-spinner-ob { border-color:rgba(255,255,255,.3); border-top-color:#fff; }
 @keyframes spin { to { transform:rotate(360deg); } }
 </style>
