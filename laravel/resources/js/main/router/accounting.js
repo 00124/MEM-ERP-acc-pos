@@ -69,6 +69,19 @@ export default [
                 },
             },
             {
+                path: "/admin/accounting/reports/balance-sheet-dashboard",
+                component: () =>
+                    import(
+                        "../views/accounting/reports/balance-sheet-dashboard.vue"
+                    ),
+                name: "admin.accounting.balance_sheet_dashboard",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "accounting",
+                    menuKey: () => "accounting_balance_sheet",
+                },
+            },
+            {
                 path: "/admin/accounting/reports/general-ledger",
                 component: () =>
                     import(

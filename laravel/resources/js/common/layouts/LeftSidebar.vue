@@ -594,6 +594,10 @@
                             key="accounting_balance_sheet"
                         >Balance Sheet</a-menu-item>
                         <a-menu-item
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.accounting.balance_sheet_dashboard' }); }"
+                            key="accounting_balance_sheet_dashboard"
+                        >BS Dashboard</a-menu-item>
+                        <a-menu-item
                             @click="() => { menuSelected(); $router.push({ name: 'admin.accounting.general_ledger' }); }"
                             key="accounting_general_ledger"
                         >General Ledger</a-menu-item>

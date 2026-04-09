@@ -879,4 +879,195 @@ class AccountingController extends ApiBaseController
             'warnings'  => array_values(array_unique($warnings)),
         ], "Backfill complete: {$generated} JEs generated, {$skipped} skipped (zero-value), " . count($failed) . " failed.");
     }
+
+    public function balanceSheetDashboard(Request $request)
+    {
+        $companyId = company()->id;
+        $asOf      = $request->as_of ?? now()->toDateString();
+        $year      = $request->year  ?? now()->year;
+
+        // ── Current snapshot ─────────────────────────────────────────────
+        $rows = DB::select("
+            SELECT coa.id, coa.account_code, coa.account_name, coa.account_type,
+                   COALESCE(SUM(jel.debit - jel.credit), 0) AS balance
+            FROM chart_of_accounts coa
+            LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
+            LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
+                AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+            WHERE coa.company_id = ? AND coa.account_type IN ('Asset','Liability','Equity')
+                  AND coa.parent_id IS NOT NULL
+            GROUP BY coa.id ORDER BY coa.account_type, coa.account_code
+        ", [$asOf, $companyId, $companyId]);
+
+        // ── P&L for ratio computation ─────────────────────────────────────
+        $plRows = DB::select("
+            SELECT coa.account_type, coa.account_name,
+                   COALESCE(SUM(jel.credit - jel.debit), 0) AS net
+            FROM chart_of_accounts coa
+            LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
+            LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
+                AND YEAR(je.entry_date) = ? AND je.status = 'posted' AND je.company_id = ?
+            WHERE coa.company_id = ? AND coa.account_type IN ('Income','COGS')
+                  AND coa.parent_id IS NOT NULL
+            GROUP BY coa.id
+        ", [$year, $companyId, $companyId]);
+
+        $revenue = collect($plRows)->where('account_type', 'Income')->sum('net');
+        $cogs    = abs(collect($plRows)->where('account_type', 'COGS')->sum('net'));
+
+        // ── Classify accounts ─────────────────────────────────────────────
+        $assets = collect($rows)->where('account_type', 'Asset');
+        $liabs  = collect($rows)->where('account_type', 'Liability');
+        $equity = collect($rows)->where('account_type', 'Equity');
+
+        $cash = $assets->filter(fn($r) => stripos($r->account_name, 'cash') !== false)->sum('balance');
+        $ar   = $assets->filter(fn($r) => stripos($r->account_name, 'receivable') !== false)->sum('balance');
+        $inv  = $assets->filter(fn($r) => stripos($r->account_name, 'inventor') !== false || stripos($r->account_name, 'stock') !== false)->sum('balance');
+        $ap   = abs($liabs->filter(fn($r) => stripos($r->account_name, 'payable') !== false)->sum('balance'));
+
+        $curA = $assets->filter(fn($r) =>
+            stripos($r->account_name, 'cash') !== false ||
+            stripos($r->account_name, 'receivable') !== false ||
+            stripos($r->account_name, 'inventor') !== false ||
+            stripos($r->account_name, 'stock') !== false ||
+            stripos($r->account_name, 'current') !== false ||
+            stripos($r->account_name, 'prepaid') !== false
+        )->sum('balance');
+
+        $curL = abs($liabs->filter(fn($r) =>
+            stripos($r->account_name, 'payable') !== false ||
+            stripos($r->account_name, 'current') !== false ||
+            stripos($r->account_name, 'accrued') !== false
+        )->sum('balance'));
+
+        $totA = $assets->sum('balance');
+        $totL = $liabs->sum(fn($r) => abs($r->balance));
+        $totE = $equity->sum(fn($r) => abs($r->balance));
+
+        // ── Ratios ────────────────────────────────────────────────────────
+        $workingCapital = $curA - $curL;
+        $currentRatio   = $curL > 0 ? round($curA / $curL, 2) : 0;
+        $liquidityRatio = $curL > 0 ? round(($cash + $ar) / $curL, 2) : 0;
+        $quickRatio     = $curL > 0 ? round(($curA - $inv) / $curL, 2) : 0;
+        $dar            = $totA > 0 ? round(($totL / $totA) * 100, 2) : 0;
+        $der            = $totE > 0 ? round(($totL / $totE) * 100, 2) : 0;
+        $invToSales     = $revenue > 0 ? round(($inv / $revenue) * 100, 2) : 0;
+        $invTurnover    = $inv > 0 ? round($cogs / $inv, 2) : 0;
+        $dsi            = $cogs > 0 ? round(($inv / $cogs) * 365) : 0;
+        $dso            = $revenue > 0 ? round(($ar / $revenue) * 365) : 0;
+        $dpo            = $cogs > 0 ? round(($ap / $cogs) * 365) : 0;
+        $c2c            = $dso + $dsi - $dpo;
+
+        // ── Yearly chart data (last 6 years) ──────────────────────────────
+        $chartYears = $arTurnover = $apTurnover = $cashByYear = [];
+
+        for ($y = now()->year - 5; $y <= now()->year; $y++) {
+            $ye = "$y-12-31";
+            $yr = DB::select("
+                SELECT coa.account_name, coa.account_type,
+                       COALESCE(SUM(jel.debit - jel.credit), 0) AS balance
+                FROM chart_of_accounts coa
+                LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
+                LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
+                    AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+                WHERE coa.company_id = ? AND coa.account_type IN ('Asset','Liability')
+                      AND coa.parent_id IS NOT NULL
+                GROUP BY coa.id
+            ", [$ye, $companyId, $companyId]);
+
+            $ypl = DB::select("
+                SELECT coa.account_type, COALESCE(SUM(jel.credit - jel.debit), 0) AS net
+                FROM chart_of_accounts coa
+                LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
+                LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
+                    AND YEAR(je.entry_date) = ? AND je.status = 'posted' AND je.company_id = ?
+                WHERE coa.company_id = ? AND coa.account_type IN ('Income','COGS')
+                      AND coa.parent_id IS NOT NULL
+                GROUP BY coa.id
+            ", [$y, $companyId, $companyId]);
+
+            $yRev  = collect($ypl)->where('account_type', 'Income')->sum('net');
+            $yCogs = abs(collect($ypl)->where('account_type', 'COGS')->sum('net'));
+            $yAr   = collect($yr)->filter(fn($r) => stripos($r->account_name, 'receivable') !== false)->sum('balance');
+            $yAp   = abs(collect($yr)->filter(fn($r) => $r->account_type === 'Liability' && stripos($r->account_name, 'payable') !== false)->sum('balance'));
+            $yCash = collect($yr)->filter(fn($r) => stripos($r->account_name, 'cash') !== false)->sum('balance');
+
+            $chartYears[]  = (string)$y;
+            $arTurnover[]  = $yAr > 0 ? round($yRev / $yAr, 2) : 0;
+            $apTurnover[]  = $yAp > 0 ? round($yCogs / $yAp, 2) : 0;
+            $cashByYear[]  = round($yCash, 2);
+        }
+
+        // ── Yearly balance sheet table (last 5 years) ─────────────────────
+        $yearlyTable = [];
+        for ($y = now()->year - 4; $y <= now()->year; $y++) {
+            $ye  = "$y-12-31";
+            $ytR = DB::select("
+                SELECT coa.account_name, coa.account_type,
+                       COALESCE(SUM(jel.debit - jel.credit), 0) AS balance
+                FROM chart_of_accounts coa
+                LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
+                LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
+                    AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+                WHERE coa.company_id = ? AND coa.account_type IN ('Asset','Liability','Equity')
+                      AND coa.parent_id IS NOT NULL
+                GROUP BY coa.id
+            ", [$ye, $companyId, $companyId]);
+
+            $ytA = collect($ytR)->where('account_type', 'Asset');
+            $ytL = collect($ytR)->where('account_type', 'Liability');
+            $ytE = collect($ytR)->where('account_type', 'Equity');
+
+            $yearlyTable[] = [
+                'year'                => $y,
+                'cash'                => round($ytA->filter(fn($r) => stripos($r->account_name, 'cash') !== false)->sum('balance'), 2),
+                'accounts_receivable' => round($ytA->filter(fn($r) => stripos($r->account_name, 'receivable') !== false)->sum('balance'), 2),
+                'inventory'           => round($ytA->filter(fn($r) => stripos($r->account_name, 'inventor') !== false || stripos($r->account_name, 'stock') !== false)->sum('balance'), 2),
+                'current_assets'      => round($ytA->filter(fn($r) => stripos($r->account_name, 'cash') !== false || stripos($r->account_name, 'receivable') !== false || stripos($r->account_name, 'inventor') !== false || stripos($r->account_name, 'stock') !== false || stripos($r->account_name, 'current') !== false)->sum('balance'), 2),
+                'property_equipment'  => round($ytA->filter(fn($r) => stripos($r->account_name, 'property') !== false || stripos($r->account_name, 'equipment') !== false || stripos($r->account_name, 'fixed') !== false)->sum('balance'), 2),
+                'accounts_payable'    => round(abs($ytL->filter(fn($r) => stripos($r->account_name, 'payable') !== false)->sum('balance')), 2),
+                'debt'                => round(abs($ytL->filter(fn($r) => stripos($r->account_name, 'loan') !== false || stripos($r->account_name, 'debt') !== false)->sum('balance')), 2),
+                'current_liabilities' => round(abs($ytL->filter(fn($r) => stripos($r->account_name, 'payable') !== false || stripos($r->account_name, 'current') !== false)->sum('balance')), 2),
+                'equity_capital'      => round(abs($ytE->sum('balance')), 2),
+            ];
+        }
+
+        return $this->sendResponse([
+            'snapshot' => [
+                'data'                => $rows,
+                'total_assets'        => round($totA, 2),
+                'total_liabilities'   => round($totL, 2),
+                'total_equity'        => round($totE, 2),
+                'cash'                => round($cash, 2),
+                'accounts_receivable' => round($ar, 2),
+                'inventory'           => round($inv, 2),
+                'accounts_payable'    => round($ap, 2),
+                'current_assets'      => round($curA, 2),
+                'current_liabilities' => round($curL, 2),
+            ],
+            'ratios' => [
+                'working_capital' => round($workingCapital, 2),
+                'current_ratio'   => $currentRatio,
+                'liquidity_ratio' => $liquidityRatio,
+                'quick_ratio'     => $quickRatio,
+                'dar'             => $dar,
+                'der'             => $der,
+                'inv_to_sales'    => $invToSales,
+                'inv_turnover'    => $invTurnover,
+                'dsi'             => $dsi,
+                'dso'             => $dso,
+                'dpo'             => $dpo,
+                'c2c'             => $c2c,
+                'cash_balance'    => round($cash, 2),
+            ],
+            'charts' => [
+                'years'       => $chartYears,
+                'ar_turnover' => $arTurnover,
+                'ap_turnover' => $apTurnover,
+                'cash_by_year'=> $cashByYear,
+            ],
+            'yearly_table' => $yearlyTable,
+            'as_of'        => $asOf,
+        ], '');
+    }
 }
