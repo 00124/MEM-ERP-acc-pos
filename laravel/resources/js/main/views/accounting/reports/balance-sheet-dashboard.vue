@@ -508,7 +508,7 @@ export default defineComponent({
                         year:  filters.value.year,
                     },
                 });
-                data.value = res.data.data;
+                data.value = res.data;
             } catch (e) {
                 console.error(e);
             } finally {
