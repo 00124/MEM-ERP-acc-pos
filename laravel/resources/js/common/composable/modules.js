@@ -27,58 +27,27 @@ const modules = () => {
 
     const getModuleData = () => {
         dataLoading.value = true;
-        const mainProductName = window.config.product_name;
 
-        const modulesPromise = axiosAdmin.get(getUrlByAppType("modules"));
-        const envatoProductsPromise = axios.post("https://envato.codeifly.com/product", {
-            verified_name: mainProductName,
-            domain: window.location.host,
-        });
-        var allModulesData = [];
+        axiosAdmin.get(getUrlByAppType("modules")).then((modulesResponse) => {
+            const installedModules = window.config.installed_modules;
+            const enabledModules = window.config.modules;
+            var allModulesData = [];
 
-        Promise.all([modulesPromise, envatoProductsPromise]).then(
-            ([modulesResponse, envatoProductsResponse]) => {
-                const product = envatoProductsResponse.data.product;
-                const installedModules = window.config.installed_modules;
-                const enabledModules = window.config.modules;
-                offers.value = envatoProductsResponse.data.offers;
-                settings.value = envatoProductsResponse.data.settings;
-
-                forEach(product.modules, (productModule) => {
-                    const currentVersion = find(installedModules, [
-                        "verified_name",
-                        productModule.verified_name,
-                    ]);
-
-                    allModulesData.push({
-                        ...productModule,
-                        current_version: currentVersion
-                            ? currentVersion.current_version
-                            : "-",
-                        status: includes(enabledModules, productModule.verified_name),
-                        installed: currentVersion == undefined ? false : true,
-                    });
-
-                    // Change status to false for unregistered modules
-                    if (!productModule.verified || productModule.other_domain_verified) {
-                        var newModArray = [...window.config.modules];
-                        var newEnabledModules = remove(newModArray, function (newValue) {
-                            return newValue != productModule.verified_name;
-                        });
-                        store.commit(
-                            "auth/updateActiveModules",
-                            newEnabledModules
-                        );
-
-                        window.config.modules = newEnabledModules;
-                    }
+            forEach(installedModules, (installedModule) => {
+                allModulesData.push({
+                    verified_name: installedModule.verified_name,
+                    name: installedModule.verified_name,
+                    verified: true,
+                    other_domain_verified: false,
+                    current_version: installedModule.current_version || "-",
+                    status: includes(enabledModules, installedModule.verified_name),
+                    installed: true,
                 });
+            });
 
-                allModules.value = allModulesData;
-                dataLoading.value = false;
-            }
-
-        );
+            allModules.value = allModulesData;
+            dataLoading.value = false;
+        });
     };
 
     const verifyPurchase = (configObject) => {

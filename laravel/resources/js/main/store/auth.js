@@ -63,7 +63,7 @@ export default {
                 leftRightPadding: '50px',
                 headerMenuMode: 'vertical'
             },
-            appChecking: true,
+            appChecking: false,
             emailSettingVerified: window.localStorage.getItem(EMAIL_SETTING_VERIFIED) || false,
             menuCollapsed: window.innerWidth <= 991 ? true : false,
             allExportData: getJSONFromLocalStorage(ALL_EXPORT_DATA) || [],
