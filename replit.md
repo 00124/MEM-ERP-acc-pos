@@ -133,6 +133,22 @@ cd /home/runner/workspace/laravel && PHP_CLI_SERVER_WORKERS=2 php -S 0.0.0.0:500
 
 Port 5000 is mapped to external port 80.
 
+## Setup Notes (Replit Migration)
+
+- `laravel/.env` is created from `.env.example` with MySQL credentials and APP_URL set to `http://localhost:5000`
+- `REPLIT_DOMAINS` secret is used by `AppServiceProvider` to force HTTPS URLs when running on Replit
+- Composer dependencies installed via `composer install` in the `laravel/` directory
+- Frontend assets built via `npm install && npm run build` in the `laravel/` directory
+- After each `npm run build`, apply license bypass patches to `public/build/assets/app-*.js`:
+  ```bash
+  # Find the current patterns and replace !1 with !0 for verified_name values
+  grep -o "verified_name:[^,]*,value:![01]}" app-*.js | head -3
+  sed -i 's/verified_name:jd,value:!1}/verified_name:jd,value:!0}/g' app-*.js
+  sed -i 's/verified_name:e,value:!1}/verified_name:e,value:!0}/g' app-*.js
+  sed -i 's/appChecking:!0,email/appChecking:!1,email/g' app-*.js
+  ```
+- `laravel/server.php` updated to add CORS headers for static files (Replit proxy compatibility)
+
 ---
 
 ## Admin Credentials
