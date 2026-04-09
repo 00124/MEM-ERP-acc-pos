@@ -398,18 +398,46 @@ class AccountingService
     }
 
     // ─── PURCHASE / GRN ───────────────────────────────────────────────────
+
+    /**
+     * Compute effective order total from item unit_price or product purchase_price.
+     * Used when order.total = 0 (e.g. GRNs created without pricing).
+     */
+    public static function computeEffectiveOrderTotal(int $orderId): float
+    {
+        return (float) \DB::table('order_items as oi')
+            ->leftJoin('product_details as pd', 'pd.product_id', '=', 'oi.product_id')
+            ->where('oi.order_id', $orderId)
+            ->sum(\DB::raw(
+                'CASE WHEN COALESCE(oi.unit_price, 0) > 0
+                      THEN oi.unit_price * oi.quantity
+                      ELSE COALESCE(pd.purchase_price, 0) * oi.quantity
+                 END'
+            ));
+    }
+
     public static function onPurchaseCreated(Order $order): array
     {
         $warnings = [];
         try {
             $companyId = $order->company_id ?? 1;
             $total     = round((float)$order->total, 2);
-            if ($total <= 0) return self::result(true, 'Zero purchase — no JE needed', $warnings);
+
+            // ── If order total = 0, compute from item purchase prices ──────
+            if ($total <= 0) {
+                $computed = round(self::computeEffectiveOrderTotal($order->id), 2);
+                if ($computed <= 0) {
+                    return self::result(true, 'Zero purchase — no JE created (total=0, purchase prices=0). Enter product purchase prices to enable accounting.', $warnings);
+                }
+                $total = $computed;
+                $warnings[] = 'Order total was 0; computed effective cost = PKR ' . number_format($total, 2) . ' from product purchase prices. Update item unit prices for accurate records.';
+            }
 
             $date      = $order->order_date ?? now()->toDateString();
             $reference = $order->invoice_number;
             $items     = self::loadItemsWithCategory($order, $companyId, $warnings);
 
+            // ── Build DR lines (Inventory/Purchase accounts per category) ──
             $purchByAcct = self::sumByAccount($items, 'subtotal', 'purchase_account_id');
             $apAcctId    = self::getAccountId(self::ACCOUNTS_PAYABLE, $companyId);
             $purchTotal  = array_sum($purchByAcct);
@@ -419,14 +447,16 @@ class AccountingService
                 if ($amount > 0) $purchaseLines[] = ['account_id' => $acctId, 'debit' => round($amount, 2), 'credit' => 0, 'note' => 'Stock purchased'];
             }
 
-            if (empty($purchaseLines)) {
-                $fallbackInv = self::getAccountId(self::INVENTORY, $companyId);
-                $purchaseLines[] = ['account_id' => $fallbackInv, 'debit' => $total, 'credit' => 0, 'note' => 'Stock purchased (fallback)'];
-                $purchTotal = $total;
-                $warnings[] = 'Inventory account fell back to default for ' . $reference;
+            // ── Fallback: if item subtotals were all 0, use computed total ─
+            if (empty($purchaseLines) || $purchTotal <= 0) {
+                $fallbackInv   = self::getAccountId(self::INVENTORY, $companyId);
+                $purchaseLines = [['account_id' => $fallbackInv, 'debit' => $total, 'credit' => 0, 'note' => 'Stock purchased (DR Inventory — fallback)']];
+                $purchTotal    = $total;
+                $warnings[]    = 'Inventory DR used default account (no category mapping found) for ' . $reference;
             }
 
-            $purchaseLines[] = ['account_id' => $apAcctId, 'debit' => 0, 'credit' => $purchTotal ?: $total, 'note' => 'Supplier payable'];
+            // ── CR Accounts Payable ────────────────────────────────────────
+            $purchaseLines[] = ['account_id' => $apAcctId, 'debit' => 0, 'credit' => round($purchTotal, 2), 'note' => 'CR Accounts Payable — supplier liability'];
 
             return self::createEntryById($companyId, "Purchase — {$reference}", $reference, $date, $purchaseLines, $warnings);
 

@@ -9,8 +9,10 @@ use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\AccountingService;
 use Illuminate\Http\Request;
 use Examyou\RestAPI\ApiResponse;
 use Examyou\RestAPI\Exceptions\ApiException;
@@ -403,24 +405,38 @@ class AccountingController extends ApiBaseController
 
         $openingBalance = $obSalesDebit - $obReturnCredit - $obPaymentCredit;
 
-        // ── Period Transactions ──────────────────────────────────────────────
-        // Sales (debit: increases balance owed by customer)
-        $salesQuery = Order::select(
-                'order_date as date',
-                'invoice_number as reference',
-                DB::raw("'Sale' as type"),
-                'total as debit',
-                DB::raw('0 as credit'),
-                'user_id'
-            )
-            ->where('company_id', $companyId)
+        // ── Period Sales — loaded separately to attach item details ──────────
+        $salesOrders = Order::where('company_id', $companyId)
             ->whereIn('order_type', ['sales'])
             ->where('cancelled', 0)
-            ->whereBetween('order_date', [$dateFrom, $dateTo]);
+            ->whereBetween('order_date', [$dateFrom, $dateTo])
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->with(['orderItems' => fn($q) => $q->with('product:id,name,item_code')])
+            ->orderBy('order_date')
+            ->orderBy('invoice_number')
+            ->get(['id', 'xid', 'order_date', 'invoice_number', 'total', 'user_id']);
 
-        // Sales Returns (credit: reduces balance owed)
+        $salesRows = $salesOrders->map(fn($o) => (object)[
+            'date'      => $o->order_date,
+            'reference' => $o->invoice_number,
+            'order_xid' => $o->xid,
+            'type'      => 'Sale',
+            'debit'     => $o->total,
+            'credit'    => 0,
+            'user_id'   => $o->user_id,
+            'items'     => $o->orderItems->map(fn($i) => [
+                'name'      => $i->product->name ?? '-',
+                'item_code' => $i->product->item_code ?? '',
+                'qty'       => (float)$i->quantity,
+                'unit_price'=> (float)$i->unit_price,
+                'subtotal'  => (float)$i->subtotal,
+            ])->values()->toArray(),
+        ]);
+
+        // ── Sales Returns ────────────────────────────────────────────────────
         $returnQuery = Order::select(
                 'order_date as date',
+                DB::raw("'' as order_xid"),
                 'invoice_number as reference',
                 DB::raw("'Sales Return' as type"),
                 DB::raw('0 as debit'),
@@ -432,9 +448,10 @@ class AccountingController extends ApiBaseController
             ->where('cancelled', 0)
             ->whereBetween('order_date', [$dateFrom, $dateTo]);
 
-        // Payments in (credit: customer paid, reduces balance owed)
+        // ── Payments in ──────────────────────────────────────────────────────
         $paymentQuery = Payment::select(
                 DB::raw('DATE(date) as date'),
+                DB::raw("'' as order_xid"),
                 'payment_number as reference',
                 DB::raw("'Payment Received' as type"),
                 DB::raw('0 as debit'),
@@ -446,14 +463,19 @@ class AccountingController extends ApiBaseController
             ->whereBetween(DB::raw('DATE(date)'), [$dateFrom, $dateTo]);
 
         if ($userId) {
-            $salesQuery->where('user_id', $userId);
             $returnQuery->where('user_id', $userId);
             $paymentQuery->where('user_id', $userId);
         }
 
-        $rows = $salesQuery->union($returnQuery)->union($paymentQuery)
+        $otherRows = $returnQuery->union($paymentQuery)
             ->orderBy('date')->orderBy('reference')
-            ->get();
+            ->get()
+            ->map(fn($r) => (object)array_merge((array)$r, ['items' => []]));
+
+        // ── Merge + sort + running balance ───────────────────────────────────
+        $rows = $salesRows->concat($otherRows)
+            ->sortBy([['date', 'asc'], ['reference', 'asc']])
+            ->values();
 
         $runningBalance = $openingBalance;
         foreach ($rows as $row) {
@@ -464,7 +486,7 @@ class AccountingController extends ApiBaseController
         $customer = $userId ? User::find($userId) : null;
 
         return $this->sendResponse([
-            'rows'            => $rows,
+            'rows'            => $rows->values(),
             'opening_balance' => $openingBalance,
             'customer'        => $customer,
             'date_from'       => $dateFrom,
@@ -474,6 +496,16 @@ class AccountingController extends ApiBaseController
 
     // ─── SUPPLIER LEDGER ──────────────────────────────────────────────────
 
+    /**
+     * Get the effective total for a purchase/GRN order.
+     * If order.total > 0 use it directly; otherwise compute from item prices.
+     */
+    private function effectivePurchaseTotal(int $orderId, float $recordedTotal): float
+    {
+        if ($recordedTotal > 0) return $recordedTotal;
+        return AccountingService::computeEffectiveOrderTotal($orderId);
+    }
+
     public function supplierLedger(Request $request)
     {
         $companyId = company()->id;
@@ -481,13 +513,16 @@ class AccountingController extends ApiBaseController
         $dateTo    = $request->date_to   ?? now()->toDateString();
         $userId    = $request->user_id ? Common::getIdFromHash($request->user_id) : null;
 
-        // ── Opening Balance (all transactions BEFORE dateFrom) ───────────────
-        $obPurchaseCredit = Order::where('company_id', $companyId)
+        // ── Opening Balance — purchases/GRNs before dateFrom ────────────────
+        // Load individually to compute effective total (handles GRNs with total=0).
+        $obOrders = Order::where('company_id', $companyId)
             ->whereIn('order_type', ['purchases', 'grn'])
             ->where('cancelled', 0)
             ->where('order_date', '<', $dateFrom)
             ->when($userId, fn($q) => $q->where('user_id', $userId))
-            ->sum('total');
+            ->get(['id', 'total']);
+
+        $obPurchaseCredit = $obOrders->sum(fn($o) => $this->effectivePurchaseTotal($o->id, (float)$o->total));
 
         $obReturnDebit = Order::where('company_id', $companyId)
             ->whereIn('order_type', ['purchase-returns'])
@@ -504,24 +539,44 @@ class AccountingController extends ApiBaseController
 
         $openingBalance = $obPurchaseCredit - $obReturnDebit - $obPaymentDebit;
 
-        // ── Period Transactions ──────────────────────────────────────────────
-        // Purchases (credit: increases amount owed to supplier)
-        $purchaseQuery = Order::select(
-                'order_date as date',
-                'invoice_number as reference',
-                DB::raw("'Purchase' as type"),
-                DB::raw('0 as debit'),
-                'total as credit',
-                'user_id'
-            )
-            ->where('company_id', $companyId)
+        // ── Period Purchases (GRNs + purchase orders) — loaded with items ────
+        $purchaseOrders = Order::where('company_id', $companyId)
             ->whereIn('order_type', ['purchases', 'grn'])
             ->where('cancelled', 0)
-            ->whereBetween('order_date', [$dateFrom, $dateTo]);
+            ->whereBetween('order_date', [$dateFrom, $dateTo])
+            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->with(['orderItems' => fn($q) => $q->with('product:id,name,item_code')])
+            ->orderBy('order_date')
+            ->orderBy('invoice_number')
+            ->get(['id', 'xid', 'order_date', 'invoice_number', 'total', 'user_id', 'order_type']);
 
-        // Purchase Returns (debit: reduces amount owed to supplier)
+        $purchaseRows = $purchaseOrders->map(function ($o) {
+            $effective = $this->effectivePurchaseTotal($o->id, (float)$o->total);
+            $label     = $o->order_type === 'grn' ? 'GRN' : 'Purchase';
+            return (object)[
+                'date'          => $o->order_date,
+                'reference'     => $o->invoice_number,
+                'order_xid'     => $o->xid,
+                'type'          => $label,
+                'debit'         => 0,
+                'credit'        => $effective,
+                'user_id'       => $o->user_id,
+                'effective_amt' => $effective,
+                'recorded_amt'  => (float)$o->total,
+                'items'         => $o->orderItems->map(fn($i) => [
+                    'name'      => $i->product->name ?? '-',
+                    'item_code' => $i->product->item_code ?? '',
+                    'qty'       => (float)$i->quantity,
+                    'unit_price'=> (float)$i->unit_price,
+                    'subtotal'  => (float)$i->subtotal,
+                ])->values()->toArray(),
+            ];
+        });
+
+        // ── Purchase Returns ─────────────────────────────────────────────────
         $returnQuery = Order::select(
                 'order_date as date',
+                DB::raw("'' as order_xid"),
                 'invoice_number as reference',
                 DB::raw("'Purchase Return' as type"),
                 'total as debit',
@@ -533,9 +588,10 @@ class AccountingController extends ApiBaseController
             ->where('cancelled', 0)
             ->whereBetween('order_date', [$dateFrom, $dateTo]);
 
-        // Payments out (debit: we paid supplier, reduces balance owed)
+        // ── Payments out ─────────────────────────────────────────────────────
         $paymentQuery = Payment::select(
                 DB::raw('DATE(date) as date'),
+                DB::raw("'' as order_xid"),
                 'payment_number as reference',
                 DB::raw("'Payment Made' as type"),
                 'amount as debit',
@@ -547,14 +603,19 @@ class AccountingController extends ApiBaseController
             ->whereBetween(DB::raw('DATE(date)'), [$dateFrom, $dateTo]);
 
         if ($userId) {
-            $purchaseQuery->where('user_id', $userId);
             $returnQuery->where('user_id', $userId);
             $paymentQuery->where('user_id', $userId);
         }
 
-        $rows = $purchaseQuery->union($returnQuery)->union($paymentQuery)
+        $otherRows = $returnQuery->union($paymentQuery)
             ->orderBy('date')->orderBy('reference')
-            ->get();
+            ->get()
+            ->map(fn($r) => (object)array_merge((array)$r, ['items' => [], 'effective_amt' => null]));
+
+        // ── Merge + sort + running balance ───────────────────────────────────
+        $rows = $purchaseRows->concat($otherRows)
+            ->sortBy([['date', 'asc'], ['reference', 'asc']])
+            ->values();
 
         $runningBalance = $openingBalance;
         foreach ($rows as $row) {
@@ -565,7 +626,7 @@ class AccountingController extends ApiBaseController
         $supplier = $userId ? User::find($userId) : null;
 
         return $this->sendResponse([
-            'rows'            => $rows,
+            'rows'            => $rows->values(),
             'opening_balance' => $openingBalance,
             'supplier'        => $supplier,
             'date_from'       => $dateFrom,
@@ -751,10 +812,7 @@ class AccountingController extends ApiBaseController
         $ordersWithJE = \DB::table('orders')
             ->where('company_id', $companyId)
             ->whereIn('order_type', ['sales', 'purchases'])
-            ->whereExists(function ($q) {
-                $q->from('journal_entries')
-                    ->whereColumn('journal_entries.reference', 'orders.invoice_number');
-            })
+            ->whereRaw("EXISTS (SELECT 1 FROM journal_entries WHERE CONVERT(journal_entries.reference USING utf8mb4) = CONVERT(orders.invoice_number USING utf8mb4))")
             ->count();
 
         $ordersTotal = \DB::table('orders')
@@ -776,5 +834,49 @@ class AccountingController extends ApiBaseController
             'je_coverage_pct'    => $ordersTotal > 0 ? round($ordersWithJE / $ordersTotal * 100, 1) : 0,
             'cogs_entries'       => $cogsTotal,
         ], '');
+    }
+
+    // ─── BACKFILL MISSING JOURNAL ENTRIES ─────────────────────────────────
+    // Generates JEs for all existing orders that don't have one yet.
+
+    public function backfillMissingJournalEntries(Request $request)
+    {
+        $companyId = company()->id;
+
+        // Find all orders that do NOT have a matching JE by invoice_number
+        // Using CONVERT to avoid MySQL collation mismatch between the two tables.
+        $orders = Order::where('company_id', $companyId)
+            ->whereIn('order_type', ['sales', 'purchases', 'grn', 'sales-returns', 'purchase-returns'])
+            ->where('cancelled', 0)
+            ->whereRaw("NOT EXISTS (SELECT 1 FROM journal_entries WHERE CONVERT(journal_entries.reference USING utf8mb4) = CONVERT(orders.invoice_number USING utf8mb4) AND journal_entries.company_id = orders.company_id)")
+            ->orderBy('order_date')
+            ->get();
+
+        $generated = 0;
+        $skipped   = 0;
+        $failed    = [];
+        $warnings  = [];
+
+        foreach ($orders as $order) {
+            $result = AccountingService::handleOrder($order);
+            if ($result['ok'] ?? false) {
+                $generated++;
+                if (!empty($result['warnings'])) {
+                    $warnings = array_merge($warnings, $result['warnings']);
+                }
+            } elseif (($result['message'] ?? '') !== '' && str_contains($result['message'] ?? '', 'Zero')) {
+                $skipped++;
+            } else {
+                $failed[] = ($order->invoice_number ?? $order->id) . ': ' . ($result['message'] ?? 'unknown error');
+            }
+        }
+
+        return $this->sendResponse([
+            'processed' => count($orders),
+            'generated' => $generated,
+            'skipped'   => $skipped,
+            'failed'    => $failed,
+            'warnings'  => array_values(array_unique($warnings)),
+        ], "Backfill complete: {$generated} JEs generated, {$skipped} skipped (zero-value), " . count($failed) . " failed.");
     }
 }

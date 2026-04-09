@@ -113,6 +113,7 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::post('accounting/category-mappings/bulk', ['as' => 'api.accounting.category-mappings.bulk', 'uses' => 'AccountingController@categoryMappingBulk']);
         ApiRoute::post('accounting/opening-balance', ['as' => 'api.accounting.opening-balance', 'uses' => 'AccountingController@postOpeningBalance']);
         ApiRoute::get('accounting/je-health', ['as' => 'api.accounting.je-health', 'uses' => 'AccountingController@jeHealthCheck']);
+        ApiRoute::post('accounting/backfill-jes', ['as' => 'api.accounting.backfill-jes', 'uses' => 'AccountingController@backfillMissingJournalEntries']);
 
         // Head Office Dashboard
         ApiRoute::get('ho-dashboard', ['as' => 'api.ho.dashboard', 'uses' => 'HoDashboardController@getData']);

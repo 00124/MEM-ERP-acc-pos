@@ -32,9 +32,10 @@
                 <label class="block text-xs text-gray-500 mb-1">To Date</label>
                 <a-date-picker v-model:value="filters.date_to" style="width:100%" />
             </a-col>
-            <a-col :span="4">
-                <a-button type="primary" @click="load" class="mt-20" :loading="loading">
-                    <SearchOutlined /> Generate
+            <a-col :span="7" style="display:flex;align-items:flex-end;gap:8px;padding-top:20px;">
+                <a-button type="primary" @click="load" :loading="loading"><SearchOutlined /> Generate</a-button>
+                <a-button v-if="generated" @click="backfillJEs" :loading="backfilling" title="Generate missing Journal Entries for all past orders">
+                    <SyncOutlined /> Backfill JEs
                 </a-button>
             </a-col>
         </a-row>
@@ -47,8 +48,30 @@
                     <p style="margin:0;color:#666">{{ formatDate(reportData.date_from) }} to {{ formatDate(reportData.date_to) }}</p>
                 </div>
 
-                <a-table :dataSource="tableRows" :columns="columns" :pagination="false" size="middle" :rowKey="(r) => r.date + '-' + r.reference + '-' + r.type" :scroll="{ x: 800 }" :rowClassName="(r) => r._is_opening ? 'ob-row' : ''">
+                <a-table
+                    :dataSource="tableRows"
+                    :columns="columns"
+                    :pagination="false"
+                    size="middle"
+                    :rowKey="(r, i) => i"
+                    :scroll="{ x: 860 }"
+                    :rowClassName="(r) => r._is_opening ? 'ob-row' : (r.items && r.items.length ? 'cl-expandable-row' : '')"
+                    :expandable="expandable"
+                >
                     <template #bodyCell="{ column, record }">
+                        <template v-if="column.key === 'reference'">
+                            <span v-if="record._is_opening" style="color:#94a3b8;font-style:italic">—</span>
+                            <router-link
+                                v-else-if="record.order_xid && record.type === 'Sale'"
+                                :to="{ name: 'admin.stock.sales.index' }"
+                                @click.prevent="openSaleDetail(record)"
+                                style="color:#2563eb;font-weight:600;cursor:pointer;text-decoration:underline;"
+                            >
+                                {{ record.reference }}
+                                <span v-if="record.items && record.items.length" style="font-size:10px;color:#94a3b8;margin-left:4px;">({{ record.items.length }} item{{ record.items.length > 1 ? 's' : '' }})</span>
+                            </router-link>
+                            <span v-else>{{ record.reference }}</span>
+                        </template>
                         <template v-if="column.key === 'type'">
                             <a-tag v-if="!record._is_opening" :color="typeColor(record.type)">{{ record.type }}</a-tag>
                             <b v-else style="color:#6b7280;font-style:italic">Opening Balance</b>
@@ -67,6 +90,43 @@
                             </span>
                         </template>
                     </template>
+
+                    <!-- Expandable row showing item details -->
+                    <template #expandedRowRender="{ record }">
+                        <div v-if="record.items && record.items.length" class="cl-items-panel">
+                            <div class="cl-items-title"><ShoppingOutlined /> Items sold — {{ record.reference }}</div>
+                            <table class="cl-items-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Product</th>
+                                        <th>Code</th>
+                                        <th class="cl-right">Qty</th>
+                                        <th class="cl-right">Unit Price</th>
+                                        <th class="cl-right">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(item, idx) in record.items" :key="idx">
+                                        <td class="cl-idx">{{ idx + 1 }}</td>
+                                        <td class="cl-name">{{ item.name }}</td>
+                                        <td><span v-if="item.item_code" class="cl-code">{{ item.item_code }}</span></td>
+                                        <td class="cl-right cl-qty">{{ item.qty }}</td>
+                                        <td class="cl-right">{{ fmt(item.unit_price) }}</td>
+                                        <td class="cl-right cl-subtotal">{{ fmt(item.subtotal) }}</td>
+                                    </tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr class="cl-total-row">
+                                        <td colspan="5" class="cl-right" style="font-weight:700;color:#334155;padding:8px 10px;">Total</td>
+                                        <td class="cl-right cl-subtotal" style="padding:8px 10px;">{{ fmt(record.debit) }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        <div v-else style="color:#94a3b8;font-size:12px;padding:8px 16px;">No item details available.</div>
+                    </template>
+
                     <template #summary>
                         <a-table-summary-row>
                             <a-table-summary-cell :index="0" :col-span="3"><b>CLOSING BALANCE</b></a-table-summary-cell>
@@ -86,27 +146,93 @@
             <a-empty v-if="!generated && !loading" description="Select filters and click Generate" class="mt-40" />
         </a-spin>
     </a-card>
+
+    <!-- Sale Detail Modal -->
+    <a-modal v-model:open="saleModalVisible" :title="'Invoice — ' + (selectedSale ? selectedSale.reference : '')" width="720px" :footer="null">
+        <div v-if="selectedSale">
+            <a-descriptions :column="2" size="small" style="margin-bottom:16px">
+                <a-descriptions-item label="Invoice">{{ selectedSale.reference }}</a-descriptions-item>
+                <a-descriptions-item label="Date">{{ selectedSale.date }}</a-descriptions-item>
+                <a-descriptions-item label="Total"><b class="text-blue-600">PKR {{ fmt(selectedSale.debit) }}</b></a-descriptions-item>
+            </a-descriptions>
+
+            <table class="cl-items-table" style="margin-top:0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Product</th>
+                        <th>Code</th>
+                        <th class="cl-right">Qty</th>
+                        <th class="cl-right">Unit Price</th>
+                        <th class="cl-right">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="(item, idx) in selectedSale.items" :key="idx">
+                        <td class="cl-idx">{{ idx + 1 }}</td>
+                        <td class="cl-name">{{ item.name }}</td>
+                        <td><span v-if="item.item_code" class="cl-code">{{ item.item_code }}</span></td>
+                        <td class="cl-right cl-qty">{{ item.qty }}</td>
+                        <td class="cl-right">{{ fmt(item.unit_price) }}</td>
+                        <td class="cl-right cl-subtotal">{{ fmt(item.subtotal) }}</td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr class="cl-total-row">
+                        <td colspan="5" class="cl-right" style="font-weight:700;color:#334155;padding:10px;">Total</td>
+                        <td class="cl-right cl-subtotal" style="padding:10px;">{{ fmt(selectedSale.debit) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </a-modal>
 </template>
 
 <script>
 import { defineComponent, ref, computed, onMounted } from 'vue';
-import { PrinterOutlined, SearchOutlined } from '@ant-design/icons-vue';
+import { PrinterOutlined, SearchOutlined, ShoppingOutlined, SyncOutlined } from '@ant-design/icons-vue';
+import { message, notification } from 'ant-design-vue';
 import AdminPageHeader from '../../../../common/layouts/AdminPageHeader.vue';
 import dayjs from 'dayjs';
 
 export default defineComponent({
-    components: { AdminPageHeader, PrinterOutlined, SearchOutlined },
+    components: { AdminPageHeader, PrinterOutlined, SearchOutlined, ShoppingOutlined, SyncOutlined },
     setup() {
         const axiosAdmin = window.axiosAdmin;
         const loading   = ref(false);
         const generated = ref(false);
+        const backfilling = ref(false);
         const customers = ref([]);
         const filters   = ref({ user_id: null, date_from: dayjs().startOf('year'), date_to: dayjs() });
         const reportData = ref({ rows: [], opening_balance: 0, customer: null, date_from: '', date_to: '' });
 
+        // Sale detail modal
+        const saleModalVisible = ref(false);
+        const selectedSale     = ref(null);
+
+        const openSaleDetail = (record) => {
+            selectedSale.value = record;
+            saleModalVisible.value = true;
+        };
+
+        // Expandable rows — only for Sale type with items
+        const expandedRowKeys = ref([]);
+        const expandable = computed(() => ({
+            expandedRowKeys: expandedRowKeys.value,
+            onExpand: (expanded, record) => {
+                const key = tableRows.value.indexOf(record);
+                if (expanded) {
+                    expandedRowKeys.value = [...expandedRowKeys.value, key];
+                } else {
+                    expandedRowKeys.value = expandedRowKeys.value.filter(k => k !== key);
+                }
+            },
+            rowExpandable: (record) => record.type === 'Sale' && record.items && record.items.length > 0,
+        }));
+
         const columns = [
             { title: 'Date',      dataIndex: 'date',      key: 'date',      width: 110 },
-            { title: 'Reference', dataIndex: 'reference', key: 'reference', width: 160 },
+            { title: 'Reference', key: 'reference', width: 200 },
             { title: 'Type',      key: 'type',  width: 150 },
             { title: 'Debit',     key: 'debit', width: 140, align: 'right' },
             { title: 'Credit',    key: 'credit',width: 140, align: 'right' },
@@ -131,6 +257,7 @@ export default defineComponent({
                 debit: ob > 0 ? ob : 0,
                 credit: ob < 0 ? Math.abs(ob) : 0,
                 running_balance: ob,
+                items: [],
                 _is_opening: true,
             };
             return [obRow, ...reportData.value.rows];
@@ -144,6 +271,7 @@ export default defineComponent({
         const load = async () => {
             loading.value = true;
             generated.value = true;
+            expandedRowKeys.value = [];
             try {
                 const res = await axiosAdmin.get('accounting/reports/customer-ledger', {
                     params: {
@@ -153,12 +281,63 @@ export default defineComponent({
                     }
                 });
                 reportData.value = res.data;
-            } catch (e) {} finally { loading.value = false; }
+            } catch (e) { message.error('Failed to load ledger'); }
+            finally { loading.value = false; }
+        };
+
+        const backfillJEs = async () => {
+            backfilling.value = true;
+            try {
+                const res = await axiosAdmin.post('accounting/backfill-jes');
+                const d = res.data;
+                notification.success({
+                    message: 'JE Backfill Complete',
+                    description: `Generated: ${d.generated} | Skipped (zero): ${d.skipped} | Failed: ${d.failed?.length ?? 0}`,
+                    duration: 8,
+                });
+                if (d.warnings && d.warnings.length) {
+                    notification.warning({
+                        message: 'Backfill Warnings',
+                        description: d.warnings.slice(0, 5).join('\n'),
+                        duration: 0,
+                        style: { whiteSpace: 'pre-line' },
+                    });
+                }
+            } catch (e) { message.error('Backfill failed: ' + (e.response?.data?.message || e.message)); }
+            finally { backfilling.value = false; }
         };
 
         const print = () => window.print();
         onMounted(loadCustomers);
-        return { loading, generated, customers, filters, reportData, tableRows, columns, fmt, formatDate, filterOption, typeColor, openingBalance, totalDebit, totalCredit, closingBalance, load, print };
+
+        return {
+            loading, generated, backfilling, customers, filters, reportData, tableRows, columns,
+            expandable, expandedRowKeys,
+            fmt, formatDate, filterOption, typeColor,
+            openingBalance, totalDebit, totalCredit, closingBalance,
+            load, print, backfillJEs,
+            saleModalVisible, selectedSale, openSaleDetail,
+        };
     }
 });
 </script>
+
+<style scoped>
+.cl-expandable-row { cursor: pointer; }
+.cl-items-panel { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 16px; margin: 4px 0; }
+.cl-items-title { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.cl-items-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cl-items-table thead tr { background: #e0f2fe; }
+.cl-items-table th { padding: 7px 10px; text-align: left; font-size: 11px; font-weight: 700; color: #0369a1; text-transform: uppercase; border-bottom: 2px solid #bae6fd; }
+.cl-items-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+.cl-items-table tbody tr:last-child td { border-bottom: none; }
+.cl-items-table tbody tr:hover { background: #f0f9ff; }
+.cl-total-row { background: #f1f5f9; }
+.cl-right { text-align: right; }
+.cl-idx { color: #94a3b8; width: 24px; font-size: 11px; }
+.cl-name { font-weight: 600; color: #1e293b; }
+.cl-code { background: #f1f5f9; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-family: monospace; color: #475569; }
+.cl-qty { font-weight: 700; color: #0ea5e9; }
+.cl-subtotal { font-weight: 700; color: #15803d; }
+:deep(.ob-row > td) { background: #fefce8 !important; }
+</style>
