@@ -201,20 +201,49 @@
                         <div v-else class="ldr-no-items">No item details available.</div>
                     </template>
 
-                    <template #summary>
-                        <a-table-summary-row class="ldr-summary">
-                            <a-table-summary-cell :index="0" :col-span="3"><span class="ldr-sum-lbl">CLOSING TOTALS</span></a-table-summary-cell>
-                            <a-table-summary-cell :index="3" align="right"><span class="ldr-sum-dr">{{ fmt(openingBalance>0 ? openingBalance+totalDebit : totalDebit) }}</span></a-table-summary-cell>
-                            <a-table-summary-cell :index="4" align="right"><span class="ldr-sum-cr">{{ fmt(openingBalance<0 ? Math.abs(openingBalance)+totalCredit : totalCredit) }}</span></a-table-summary-cell>
-                            <a-table-summary-cell :index="5" align="right">
-                                <span class="ldr-sum-bal" :class="closingBalance>=0?'ldr-sum-dr':'ldr-sum-cr'">
-                                    PKR {{ fmt(Math.abs(closingBalance)) }} {{ closingBalance>=0?'Dr':'Cr' }}
-                                </span>
-                            </a-table-summary-cell>
-                        </a-table-summary-row>
-                    </template>
                 </a-table>
                 <a-empty v-if="!reportData.rows.length" description="No transactions in this period" class="ldr-empty-tbl" />
+            </div>
+
+            <!-- ── Closing Totals Card ── -->
+            <div class="ldr-closing-card">
+                <div class="ldr-closing-label">
+                    <span class="ldr-closing-line"></span>
+                    <span class="ldr-closing-title">Closing Totals</span>
+                    <span class="ldr-closing-line"></span>
+                </div>
+                <div class="ldr-closing-grid">
+                    <div class="ldr-closing-block ldr-closing-dr">
+                        <div class="ldr-closing-icon"><ArrowUpOutlined /></div>
+                        <div class="ldr-closing-info">
+                            <div class="ldr-closing-val">PKR {{ fmt(openingBalance > 0 ? openingBalance + totalDebit : totalDebit) }}</div>
+                            <div class="ldr-closing-sub">Total Debit</div>
+                        </div>
+                    </div>
+                    <div class="ldr-closing-divider"></div>
+                    <div class="ldr-closing-block ldr-closing-cr">
+                        <div class="ldr-closing-icon"><ArrowDownOutlined /></div>
+                        <div class="ldr-closing-info">
+                            <div class="ldr-closing-val">PKR {{ fmt(openingBalance < 0 ? Math.abs(openingBalance) + totalCredit : totalCredit) }}</div>
+                            <div class="ldr-closing-sub">Total Credit</div>
+                        </div>
+                    </div>
+                    <div class="ldr-closing-divider"></div>
+                    <div class="ldr-closing-block ldr-closing-bal" :class="closingBalance >= 0 ? 'ldr-closing-bal-dr' : 'ldr-closing-bal-cr'">
+                        <div class="ldr-closing-icon">
+                            <RiseOutlined v-if="closingBalance >= 0" />
+                            <FallOutlined v-else />
+                        </div>
+                        <div class="ldr-closing-info">
+                            <div class="ldr-closing-val ldr-closing-val-lg">PKR {{ fmt(Math.abs(closingBalance)) }}</div>
+                            <div class="ldr-closing-sub">
+                                <span class="ldr-closing-badge" :class="closingBalance >= 0 ? 'ldr-badge-dr' : 'ldr-badge-cr'">
+                                    {{ closingBalance >= 0 ? 'Receivable' : 'Advance Paid' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </a-spin>
@@ -257,6 +286,7 @@ import {
     PrinterOutlined, SearchOutlined, ShoppingOutlined, SyncOutlined,
     FileTextOutlined, UserOutlined, CalendarOutlined, DollarOutlined,
     CheckCircleOutlined, WalletOutlined, BarChartOutlined,
+    ArrowUpOutlined, ArrowDownOutlined, RiseOutlined, FallOutlined,
 } from '@ant-design/icons-vue';
 import { message, notification } from 'ant-design-vue';
 import AdminPageHeader from '../../../../common/layouts/AdminPageHeader.vue';
@@ -267,6 +297,7 @@ export default defineComponent({
         AdminPageHeader, PrinterOutlined, SearchOutlined, ShoppingOutlined, SyncOutlined,
         FileTextOutlined, UserOutlined, CalendarOutlined, DollarOutlined,
         CheckCircleOutlined, WalletOutlined, BarChartOutlined,
+        ArrowUpOutlined, ArrowDownOutlined, RiseOutlined, FallOutlined,
     },
     setup() {
         const axiosAdmin  = window.axiosAdmin;
@@ -549,14 +580,65 @@ export default defineComponent({
 :deep(.ldr-row-ob  > td) { background: #fefce8 !important; }
 :deep(.ldr-row-pay > td) { background: #f0fdf4 !important; }
 
-/* summary */
-:deep(.ldr-summary > td) { background: #0f172a !important; padding-top: 12px !important; padding-bottom: 12px !important; }
-.ldr-sum-lbl  { color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
-.ldr-sum-dr   { color: #93c5fd; font-weight: 800; font-size: 13px; }
-.ldr-sum-cr   { color: #86efac; font-weight: 800; font-size: 13px; }
-.ldr-sum-bal  { font-size: 14px; font-weight: 800; }
-
 .ldr-empty-tbl { padding: 40px; }
+
+/* ── Closing Totals Card ── */
+.ldr-closing-card {
+    background: #fff;
+    border-radius: 18px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 24px rgba(0,0,0,.07);
+    padding: 24px 28px;
+    overflow: hidden;
+}
+.ldr-closing-label {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px;
+}
+.ldr-closing-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, #e2e8f0, transparent); }
+.ldr-closing-title {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.2px;
+    text-transform: uppercase; color: #94a3b8;
+    white-space: nowrap;
+}
+.ldr-closing-grid {
+    display: flex; align-items: stretch; gap: 0;
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid #e2e8f0;
+}
+.ldr-closing-block {
+    flex: 1; display: flex; align-items: center; gap: 16px;
+    padding: 22px 28px;
+}
+.ldr-closing-dr     { background: linear-gradient(135deg, #eff6ff, #dbeafe); }
+.ldr-closing-cr     { background: linear-gradient(135deg, #f0fdf4, #dcfce7); }
+.ldr-closing-bal    { flex: 1.2; }
+.ldr-closing-bal-dr { background: linear-gradient(135deg, #fff1f2, #ffe4e6); }
+.ldr-closing-bal-cr { background: linear-gradient(135deg, #ecfdf5, #d1fae5); }
+.ldr-closing-divider { width: 1px; background: #e2e8f0; flex-shrink: 0; }
+.ldr-closing-icon {
+    font-size: 20px;
+    width: 46px; height: 46px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.ldr-closing-dr   .ldr-closing-icon { background: #dbeafe; color: #1d4ed8; }
+.ldr-closing-cr   .ldr-closing-icon { background: #dcfce7; color: #15803d; }
+.ldr-closing-bal-dr .ldr-closing-icon { background: #fecdd3; color: #dc2626; }
+.ldr-closing-bal-cr .ldr-closing-icon { background: #a7f3d0; color: #059669; }
+.ldr-closing-val {
+    font-size: 17px; font-weight: 800; color: #0f172a;
+    font-variant-numeric: tabular-nums; line-height: 1.2;
+}
+.ldr-closing-val-lg { font-size: 20px; }
+.ldr-closing-sub { font-size: 11.5px; color: #64748b; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+.ldr-closing-badge {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 2px 10px; border-radius: 20px; margin-top: 2px;
+}
+.ldr-badge-dr { background: #fee2e2; color: #b91c1c; }
+.ldr-badge-cr { background: #dcfce7; color: #15803d; }
 
 /* ── Expand panel ── */
 .ldr-expand { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; }
