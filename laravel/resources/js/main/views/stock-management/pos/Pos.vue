@@ -27,24 +27,35 @@
 
             <!-- Customer Section -->
             <div class="pos-section pos-cust-section">
-                <div class="pos-section-title"><UserOutlined /> Customer</div>
+                <div class="pos-section-title">
+                    <UserOutlined /> Customer
+                    <span class="pos-req-badge">Required</span>
+                </div>
                 <div class="pos-cust-inputs">
-                    <a-input
-                        v-model:value="quickAddPhone"
-                        placeholder="Phone Number"
-                        class="pos-input"
-                        allow-clear
-                        @change="searchCustomerByPhone"
-                    >
-                        <template #prefix><PhoneOutlined class="pos-input-icon" /></template>
-                    </a-input>
-                    <a-input
-                        v-model:value="quickAddName"
-                        placeholder="Customer Name"
-                        class="pos-input"
-                    >
-                        <template #prefix><UserOutlined class="pos-input-icon" /></template>
-                    </a-input>
+                    <div class="pos-input-wrap">
+                        <label class="pos-input-lbl">Phone <span class="pos-req-star">*</span></label>
+                        <a-input
+                            v-model:value="quickAddPhone"
+                            placeholder="e.g. 03001234567"
+                            :class="['pos-input', checkoutAttempted && quickAddPhone.length < 3 ? 'pos-input-error' : '']"
+                            allow-clear
+                            @change="searchCustomerByPhone"
+                        >
+                            <template #prefix><PhoneOutlined class="pos-input-icon" /></template>
+                        </a-input>
+                        <div v-if="checkoutAttempted && quickAddPhone.length < 3" class="pos-field-err">Phone number is required</div>
+                    </div>
+                    <div class="pos-input-wrap">
+                        <label class="pos-input-lbl">Name <span class="pos-req-star">*</span></label>
+                        <a-input
+                            v-model:value="quickAddName"
+                            placeholder="Customer full name"
+                            :class="['pos-input', checkoutAttempted && !quickAddName ? 'pos-input-error' : '']"
+                        >
+                            <template #prefix><UserOutlined class="pos-input-icon" /></template>
+                        </a-input>
+                        <div v-if="checkoutAttempted && !quickAddName" class="pos-field-err">Customer name is required</div>
+                    </div>
                 </div>
                 <div v-if="selectedCustomerInfo" class="pos-cust-found">
                     <div class="pos-cust-avatar">{{ selectedCustomerInfo.name.charAt(0).toUpperCase() }}</div>
@@ -54,7 +65,7 @@
                     </div>
                     <button class="pos-cust-clear" @click="clearSelectedCustomer"><CloseOutlined /></button>
                 </div>
-                <div v-else-if="phoneSearchDone && quickAddPhone.length >= 3" class="pos-cust-new">
+                <div v-else-if="phoneSearchDone && quickAddPhone.length >= 3 && quickAddName" class="pos-cust-new">
                     <PlusCircleOutlined /> New customer — will be created on checkout
                 </div>
             </div>
@@ -178,10 +189,10 @@
                 <!-- Action buttons -->
                 <div class="pos-action-btns">
                     <button class="pos-btn-reset" @click="resetPos"><RedoOutlined /> Reset</button>
-                    <button class="pos-btn-quote" :disabled="formData.subtotal <= 0 || (!formData.user_id && quickAddPhone.length < 3)" @click="viewQuote">
+                    <button class="pos-btn-quote" :disabled="formData.subtotal <= 0" @click="viewQuote">
                         <FileTextOutlined /> Quote
                     </button>
-                    <button class="pos-btn-pay" :disabled="formData.subtotal <= 0 || (!formData.user_id && quickAddPhone.length < 3)" @click="payNow">
+                    <button class="pos-btn-pay" :disabled="formData.subtotal <= 0" @click="payNow">
                         <CreditCardOutlined /> Pay Now
                     </button>
                 </div>
@@ -210,14 +221,28 @@
     <div v-else class="pos-mobile">
         <!-- Customer -->
         <div class="pos-section pos-cust-section">
-            <div class="pos-section-title"><UserOutlined /> Customer</div>
+            <div class="pos-section-title">
+                <UserOutlined /> Customer
+                <span class="pos-req-badge">Required</span>
+            </div>
             <div class="pos-cust-inputs">
-                <a-input v-model:value="quickAddPhone" placeholder="Phone Number" class="pos-input" allow-clear @change="searchCustomerByPhone">
-                    <template #prefix><PhoneOutlined class="pos-input-icon" /></template>
-                </a-input>
-                <a-input v-model:value="quickAddName" placeholder="Customer Name" class="pos-input">
-                    <template #prefix><UserOutlined class="pos-input-icon" /></template>
-                </a-input>
+                <div class="pos-input-wrap">
+                    <label class="pos-input-lbl">Phone <span class="pos-req-star">*</span></label>
+                    <a-input v-model:value="quickAddPhone" placeholder="e.g. 03001234567"
+                        :class="['pos-input', checkoutAttempted && quickAddPhone.length < 3 ? 'pos-input-error' : '']"
+                        allow-clear @change="searchCustomerByPhone">
+                        <template #prefix><PhoneOutlined class="pos-input-icon" /></template>
+                    </a-input>
+                    <div v-if="checkoutAttempted && quickAddPhone.length < 3" class="pos-field-err">Phone number is required</div>
+                </div>
+                <div class="pos-input-wrap">
+                    <label class="pos-input-lbl">Name <span class="pos-req-star">*</span></label>
+                    <a-input v-model:value="quickAddName" placeholder="Customer full name"
+                        :class="['pos-input', checkoutAttempted && !quickAddName ? 'pos-input-error' : '']">
+                        <template #prefix><UserOutlined class="pos-input-icon" /></template>
+                    </a-input>
+                    <div v-if="checkoutAttempted && !quickAddName" class="pos-field-err">Customer name is required</div>
+                </div>
             </div>
             <div v-if="selectedCustomerInfo" class="pos-cust-found">
                 <div class="pos-cust-avatar">{{ selectedCustomerInfo.name.charAt(0).toUpperCase() }}</div>
@@ -227,7 +252,7 @@
                 </div>
                 <button class="pos-cust-clear" @click="clearSelectedCustomer"><CloseOutlined /></button>
             </div>
-            <div v-else-if="phoneSearchDone && quickAddPhone.length >= 3" class="pos-cust-new">
+            <div v-else-if="phoneSearchDone && quickAddPhone.length >= 3 && quickAddName" class="pos-cust-new">
                 <PlusCircleOutlined /> New customer — will be created on checkout
             </div>
         </div>
@@ -314,8 +339,8 @@
             </div>
             <div class="pos-mob-btns">
                 <button class="pos-btn-reset pos-btn-sm" @click="resetPos"><RedoOutlined /></button>
-                <button class="pos-btn-quote pos-btn-sm" :disabled="formData.subtotal<=0 || (!formData.user_id && quickAddPhone.length<3)" @click="viewQuote"><FileTextOutlined /></button>
-                <button class="pos-btn-pay pos-btn-sm" :disabled="formData.subtotal<=0 || (!formData.user_id && quickAddPhone.length<3)" @click="payNow"><CreditCardOutlined /> Pay</button>
+                <button class="pos-btn-quote pos-btn-sm" :disabled="formData.subtotal<=0" @click="viewQuote"><FileTextOutlined /></button>
+                <button class="pos-btn-pay pos-btn-sm" :disabled="formData.subtotal<=0" @click="payNow"><CreditCardOutlined /> Pay</button>
             </div>
         </div>
     </div>
@@ -514,6 +539,7 @@ export default {
         const quickAddName = ref('');
         const selectedCustomerInfo = ref(null);
         const phoneSearchDone = ref(false);
+        const checkoutAttempted = ref(false);
         const addCustomerModalVisible = ref(false);
         const addCustomerLoading = ref(false);
         const modalCustomerName = ref('');
@@ -786,8 +812,10 @@ export default {
 
         const payNow = async () => {
             if (!cashRegister.value) { cashRegisterOpenVis.value = true; message.warning('Please open the cash register before making a sale.'); return; }
-            if (!formData.value.user_id && quickAddPhone.value && quickAddPhone.value.length >= 3) {
-                if (!quickAddName.value) { message.warning('Please enter a customer name to proceed.'); return; }
+            checkoutAttempted.value = true;
+            if (!quickAddPhone.value || quickAddPhone.value.length < 3) { message.warning('Customer phone number is required.'); return; }
+            if (!quickAddName.value) { message.warning('Customer name is required.'); return; }
+            if (!formData.value.user_id) {
                 try { await autoCreateAndSelectCustomer(); } catch (e) { return; }
             }
             payNowVisible.value = true;
@@ -799,6 +827,7 @@ export default {
             selectedProducts.value = []; selectedProductIds.value = [];
             formData.value = { ...formData.value, tax_id: undefined, category_id: undefined, brand_id: undefined, tax_rate: 0, tax_amount: 0, discount_value: 0, discount: 0, shipping: 0, subtotal: 0 };
             selectedCustomerInfo.value = null; phoneSearchDone.value = false; quickAddPhone.value = ''; quickAddName.value = '';
+            checkoutAttempted.value = false;
             recalculateFinalTotal();
         };
 
@@ -851,8 +880,10 @@ export default {
         };
 
         const viewQuote = async () => {
-            if (!formData.value.user_id && quickAddPhone.value && quickAddPhone.value.length >= 3) {
-                if (!quickAddName.value) { message.warning('Please enter a customer name to proceed.'); return; }
+            checkoutAttempted.value = true;
+            if (!quickAddPhone.value || quickAddPhone.value.length < 3) { message.warning('Customer phone number is required.'); return; }
+            if (!quickAddName.value) { message.warning('Customer name is required.'); return; }
+            if (!formData.value.user_id) {
                 try { await autoCreateAndSelectCustomer(); } catch (e) { return; }
             }
             addEditRequestAdmin({
@@ -870,7 +901,7 @@ export default {
             orderItemColumns, formatAmount, formatAmountCurrency,
             containerStyle: { height: window.innerHeight - 110 + "px", overflow: "scroll", "overflow-y": "scroll" },
             customerAdded,
-            quickAddPhone, quickAddName, selectedCustomerInfo, phoneSearchDone, searchCustomerByPhone, clearSelectedCustomer,
+            quickAddPhone, quickAddName, selectedCustomerInfo, phoneSearchDone, checkoutAttempted, searchCustomerByPhone, clearSelectedCustomer,
             editItem, addEditVisible, addEditFormData, addEditFormSubmitting, addEditRules, addEditPageTitle, onAddEditSubmit, onAddEditClose,
             taxTypes, showDeleteConfirm, payNowSuccess,
             printInvoiceModalVisible, printInvoiceOrder,
@@ -982,8 +1013,19 @@ export default {
 
 /* Customer Section */
 .pos-cust-section { }
-.pos-cust-inputs { display: flex; gap: 8px; margin-bottom: 8px; }
-.pos-input { border-radius: 10px !important; flex: 1; }
+.pos-req-badge {
+    margin-left: auto; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    background: #fef2f2; color: #ef4444; border: 1px solid #fecaca;
+    border-radius: 20px; padding: 1px 8px; letter-spacing: .3px;
+}
+.pos-req-star { color: #ef4444; font-weight: 800; }
+.pos-cust-inputs { display: flex; gap: 10px; margin-bottom: 8px; }
+.pos-input-wrap { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.pos-input-lbl { font-size: 11px; font-weight: 700; color: #64748b; display: block; }
+.pos-field-err { font-size: 11px; color: #ef4444; font-weight: 600; display: flex; align-items: center; gap: 3px; }
+.pos-field-err::before { content: '⚠'; font-size: 10px; }
+.pos-input { border-radius: 10px !important; width: 100% !important; }
+.pos-input-error { border-color: #ef4444 !important; box-shadow: 0 0 0 2px rgba(239,68,68,.15) !important; }
 .pos-input-icon { color: #94a3b8; }
 
 .pos-cust-found {
