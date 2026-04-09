@@ -40,11 +40,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        $replitDomains = env('REPLIT_DOMAINS');
-        if ($replitDomains) {
-            $domain = explode(',', $replitDomains)[0];
-            URL::forceRootUrl('https://' . $domain);
-            URL::forceScheme('https');
-        }
+        // URL generation is handled automatically by TrustProxies middleware
+        // which reads X-Forwarded-Host and X-Forwarded-Proto from the Replit proxy
     }
 }

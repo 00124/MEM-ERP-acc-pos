@@ -136,7 +136,7 @@ Port 5000 is mapped to external port 80.
 ## Setup Notes (Replit Migration)
 
 - `laravel/.env` is created from `.env.example` with MySQL credentials and APP_URL set to `http://localhost:5000`
-- `REPLIT_DOMAINS` secret is used by `AppServiceProvider` to force HTTPS URLs when running on Replit
+- URL generation handled automatically by `TrustProxies` middleware (`$proxies = '*'`) reading X-Forwarded headers — `AppServiceProvider` no longer forces a static root URL so assets load correctly both via Replit proxy and direct localhost access
 - Composer dependencies installed via `composer install` in the `laravel/` directory
 - Frontend assets built via `npm install && npm run build` in the `laravel/` directory
 - License/product key check permanently removed from source: `appChecking` defaults to `false` in `resources/js/main/store/auth.js`; external Codeifly verification calls removed from `resources/js/common/composable/modules.js`
