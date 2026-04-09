@@ -3,9 +3,7 @@
         <template #header>
             <a-page-header title="Customer Ledger" class="p-0">
                 <template #extra>
-                    <a-button @click="print" style="border-radius:8px;">
-                        <PrinterOutlined /> Print
-                    </a-button>
+                    <a-button class="ldr-print-btn" @click="print"><PrinterOutlined /> Print</a-button>
                 </template>
             </a-page-header>
         </template>
@@ -18,271 +16,236 @@
         </template>
     </AdminPageHeader>
 
-    <!-- Filter Card -->
-    <div class="cl-filter-card">
-        <div class="cl-filter-inner">
-            <div class="cl-filter-icon"><UserOutlined /></div>
-            <div class="cl-filter-group">
-                <label class="cl-label">Customer</label>
-                <a-select
-                    v-model:value="filters.user_id"
-                    class="cl-select"
-                    show-search
-                    :filter-option="filterOption"
-                    placeholder="All Customers"
-                    allow-clear
-                >
+    <!-- ── Hero filter bar ── -->
+    <div class="ldr-hero ldr-hero-blue">
+        <div class="ldr-hero-glow ldr-glow-1"></div>
+        <div class="ldr-hero-glow ldr-glow-2"></div>
+
+        <div class="ldr-hero-top">
+            <div class="ldr-hero-title">
+                <span class="ldr-hero-icon"><UserOutlined /></span>
+                <div>
+                    <h1 class="ldr-h1">Customer Ledger</h1>
+                    <p class="ldr-sub">Receivables &amp; payment history</p>
+                </div>
+            </div>
+            <div v-if="generated" class="ldr-hero-kpi-row">
+                <div class="ldr-kpi ldr-kpi-glass">
+                    <div class="ldr-kpi-val">PKR {{ fmt(totalDebit) }}</div>
+                    <div class="ldr-kpi-lbl">Total Billed</div>
+                </div>
+                <div class="ldr-kpi ldr-kpi-glass">
+                    <div class="ldr-kpi-val">PKR {{ fmt(totalCredit) }}</div>
+                    <div class="ldr-kpi-lbl">Total Received</div>
+                </div>
+                <div class="ldr-kpi ldr-kpi-glass ldr-kpi-accent" :class="closingBalance >= 0 ? 'ldr-kpi-due' : 'ldr-kpi-ok'">
+                    <div class="ldr-kpi-val">PKR {{ fmt(Math.abs(closingBalance)) }}</div>
+                    <div class="ldr-kpi-lbl">{{ closingBalance >= 0 ? 'Receivable' : 'Advance Paid' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="ldr-filters">
+            <div class="ldr-filter-field">
+                <label class="ldr-filter-label"><UserOutlined /> Customer</label>
+                <a-select v-model:value="filters.user_id" class="ldr-input" show-search :filter-option="filterOption" placeholder="All Customers" allow-clear>
                     <a-select-option v-for="c in customers" :key="c.xid" :value="c.xid">{{ c.name }}</a-select-option>
                 </a-select>
             </div>
-            <div class="cl-filter-group">
-                <label class="cl-label">From Date</label>
-                <a-date-picker v-model:value="filters.date_from" class="cl-date-picker" />
+            <div class="ldr-filter-field ldr-filter-sm">
+                <label class="ldr-filter-label"><CalendarOutlined /> From</label>
+                <a-date-picker v-model:value="filters.date_from" class="ldr-input" />
             </div>
-            <div class="cl-filter-group">
-                <label class="cl-label">To Date</label>
-                <a-date-picker v-model:value="filters.date_to" class="cl-date-picker" />
+            <div class="ldr-filter-field ldr-filter-sm">
+                <label class="ldr-filter-label"><CalendarOutlined /> To</label>
+                <a-date-picker v-model:value="filters.date_to" class="ldr-input" />
             </div>
-            <div class="cl-filter-actions">
-                <a-button type="primary" class="cl-btn-generate" @click="load" :loading="loading">
-                    <SearchOutlined /> Generate Report
-                </a-button>
-                <a-button v-if="generated" class="cl-btn-backfill" @click="backfillJEs" :loading="backfilling" title="Generate missing Journal Entries">
-                    <SyncOutlined /> Backfill JEs
-                </a-button>
+            <div class="ldr-filter-actions">
+                <button class="ldr-gen-btn" @click="load" :disabled="loading">
+                    <span v-if="loading" class="ldr-spinner"></span>
+                    <SearchOutlined v-else />
+                    {{ loading ? 'Loading…' : 'Generate' }}
+                </button>
+                <button v-if="generated" class="ldr-back-btn" @click="backfillJEs" :disabled="backfilling">
+                    <SyncOutlined :spin="backfilling" /> Backfill JEs
+                </button>
             </div>
         </div>
     </div>
 
-    <a-spin :spinning="loading">
-        <!-- Empty state before generation -->
-        <div v-if="!generated && !loading" class="cl-empty-state">
-            <FileTextOutlined class="cl-empty-icon" />
-            <p class="cl-empty-title">No Report Generated</p>
-            <p class="cl-empty-sub">Select filters above and click <b>Generate Report</b> to view the customer ledger.</p>
+    <!-- ── Empty state ── -->
+    <div v-if="!generated && !loading" class="ldr-idle">
+        <div class="ldr-idle-ring">
+            <BarChartOutlined class="ldr-idle-ico" />
         </div>
+        <h3 class="ldr-idle-h">Ready to generate</h3>
+        <p class="ldr-idle-p">Choose a customer and date range above, then click <b>Generate</b>.</p>
+    </div>
 
-        <div v-if="generated" id="printable-area">
+    <a-spin :spinning="loading">
+        <div v-if="generated" id="printable-area" class="ldr-body">
 
-            <!-- Report Header -->
-            <div class="cl-report-header">
-                <div class="cl-report-header-left">
-                    <div class="cl-report-badge"><AccountBookOutlined /> Customer Ledger</div>
-                    <h2 class="cl-report-title">{{ reportData.customer ? reportData.customer.name : 'All Customers' }}</h2>
-                    <p class="cl-report-period"><CalendarOutlined /> {{ formatDate(reportData.date_from) }} &nbsp;→&nbsp; {{ formatDate(reportData.date_to) }}</p>
+            <!-- Summary strip -->
+            <div class="ldr-stat-strip">
+                <div class="ldr-stat ldr-stat-neutral">
+                    <div class="ldr-stat-icon"><DollarOutlined /></div>
+                    <div class="ldr-stat-info">
+                        <div class="ldr-stat-num">PKR {{ fmt(Math.abs(openingBalance)) }}</div>
+                        <div class="ldr-stat-lbl">Opening Balance</div>
+                        <div class="ldr-stat-tag">{{ openingBalance >= 0 ? 'Receivable b/f' : 'Advance b/f' }}</div>
+                    </div>
                 </div>
-                <div class="cl-report-header-right">
-                    <div class="cl-stat-chip" :class="closingBalance >= 0 ? 'cl-chip-dr' : 'cl-chip-cr'">
-                        <span class="cl-chip-label">Closing Balance</span>
-                        <span class="cl-chip-value">PKR {{ fmt(Math.abs(closingBalance)) }}</span>
-                        <span class="cl-chip-tag">{{ closingBalance >= 0 ? 'Receivable' : 'Advance Paid' }}</span>
+                <div class="ldr-stat ldr-stat-blue">
+                    <div class="ldr-stat-icon"><FileTextOutlined /></div>
+                    <div class="ldr-stat-info">
+                        <div class="ldr-stat-num">PKR {{ fmt(totalDebit) }}</div>
+                        <div class="ldr-stat-lbl">Total Sales</div>
+                        <div class="ldr-stat-tag">{{ reportData.rows.filter(r=>r.type==='Sale').length }} invoice(s)</div>
+                    </div>
+                </div>
+                <div class="ldr-stat ldr-stat-green">
+                    <div class="ldr-stat-icon"><CheckCircleOutlined /></div>
+                    <div class="ldr-stat-info">
+                        <div class="ldr-stat-num">PKR {{ fmt(totalCredit) }}</div>
+                        <div class="ldr-stat-lbl">Total Received</div>
+                        <div class="ldr-stat-tag">{{ reportData.rows.filter(r=>r.type==='Payment Received').length }} payment(s)</div>
+                    </div>
+                </div>
+                <div class="ldr-stat" :class="closingBalance >= 0 ? 'ldr-stat-red' : 'ldr-stat-emerald'">
+                    <div class="ldr-stat-icon"><WalletOutlined /></div>
+                    <div class="ldr-stat-info">
+                        <div class="ldr-stat-num">PKR {{ fmt(Math.abs(closingBalance)) }}</div>
+                        <div class="ldr-stat-lbl">{{ closingBalance >= 0 ? 'Receivable' : 'Advance Paid' }}</div>
+                        <div class="ldr-stat-tag">Net closing</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Summary Cards -->
-            <div class="cl-cards">
-                <div class="cl-card cl-card-ob">
-                    <div class="cl-card-icon"><DollarOutlined /></div>
-                    <div>
-                        <div class="cl-card-label">Opening Balance</div>
-                        <div class="cl-card-value">PKR {{ fmt(Math.abs(openingBalance)) }}</div>
-                        <div class="cl-card-sub">{{ openingBalance >= 0 ? 'Receivable b/f' : 'Advance b/f' }}</div>
+            <!-- Table card -->
+            <div class="ldr-table-card">
+                <div class="ldr-table-header">
+                    <div class="ldr-table-title">
+                        <span class="ldr-table-dot ldr-dot-blue"></span>
+                        Transaction Ledger
+                        <span class="ldr-table-count">{{ tableRows.length }} rows</span>
+                    </div>
+                    <div class="ldr-table-meta">
+                        {{ formatDate(reportData.date_from) }} — {{ formatDate(reportData.date_to) }}
+                        <span v-if="reportData.customer" class="ldr-table-customer"> · {{ reportData.customer.name }}</span>
                     </div>
                 </div>
-                <div class="cl-card cl-card-sales">
-                    <div class="cl-card-icon"><ShoppingCartOutlined /></div>
-                    <div>
-                        <div class="cl-card-label">Total Sales</div>
-                        <div class="cl-card-value">PKR {{ fmt(totalDebit) }}</div>
-                        <div class="cl-card-sub">{{ reportData.rows.filter(r=>r.type==='Sale').length }} invoice(s)</div>
-                    </div>
-                </div>
-                <div class="cl-card cl-card-payments">
-                    <div class="cl-card-icon"><CheckCircleOutlined /></div>
-                    <div>
-                        <div class="cl-card-label">Total Received</div>
-                        <div class="cl-card-value">PKR {{ fmt(totalCredit) }}</div>
-                        <div class="cl-card-sub">{{ reportData.rows.filter(r=>r.type==='Payment Received').length }} payment(s)</div>
-                    </div>
-                </div>
-                <div class="cl-card" :class="closingBalance >= 0 ? 'cl-card-due' : 'cl-card-advance'">
-                    <div class="cl-card-icon"><WalletOutlined /></div>
-                    <div>
-                        <div class="cl-card-label">{{ closingBalance >= 0 ? 'Amount Receivable' : 'Advance Paid' }}</div>
-                        <div class="cl-card-value">PKR {{ fmt(Math.abs(closingBalance)) }}</div>
-                        <div class="cl-card-sub">Net closing balance</div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Ledger Table -->
-            <div class="cl-table-wrapper">
                 <a-table
                     :dataSource="tableRows"
                     :columns="columns"
                     :pagination="false"
                     size="middle"
-                    :rowKey="(r, i) => i"
+                    :rowKey="(r,i)=>i"
                     :scroll="{ x: 860 }"
                     :rowClassName="rowClass"
                     :expandable="expandable"
-                    class="cl-table"
+                    class="ldr-table"
                 >
                     <template #bodyCell="{ column, record }">
                         <template v-if="column.key === 'date'">
-                            <span class="cl-date-cell">{{ record.date }}</span>
+                            <span class="ldr-date">{{ record.date }}</span>
                         </template>
                         <template v-if="column.key === 'reference'">
-                            <span v-if="record._is_opening" class="cl-ob-ref">Opening Balance</span>
-                            <span
-                                v-else-if="record.order_xid && record.type === 'Sale'"
-                                class="cl-ref-link"
-                                @click="openSaleDetail(record)"
-                            >
-                                <FileTextOutlined style="margin-right:4px;font-size:11px;" />
+                            <span v-if="record._is_opening" class="ldr-ob-ref">— Opening Balance —</span>
+                            <span v-else-if="record.order_xid && record.type==='Sale'" class="ldr-ref-link" @click="openSaleDetail(record)">
+                                <span class="ldr-ref-icon"><FileTextOutlined /></span>
                                 {{ record.reference }}
-                                <a-badge v-if="record.items && record.items.length" :count="record.items.length" :number-style="{ backgroundColor:'#0ea5e9', fontSize:'9px', height:'16px', lineHeight:'16px', minWidth:'16px' }" />
+                                <span class="ldr-ref-badge" v-if="record.items?.length">{{ record.items.length }}</span>
                             </span>
-                            <span v-else class="cl-ref-plain">{{ record.reference }}</span>
+                            <span v-else class="ldr-ref-plain">{{ record.reference }}</span>
                         </template>
                         <template v-if="column.key === 'type'">
-                            <span v-if="record._is_opening" class="cl-type-ob"><span class="cl-type-dot cl-dot-gray"></span>b/f</span>
-                            <span v-else class="cl-type-pill" :class="typeClass(record.type)">
-                                <span class="cl-type-dot" :class="typeDot(record.type)"></span>
-                                {{ record.type }}
-                            </span>
+                            <span v-if="record._is_opening" class="ldr-pill ldr-pill-ob">b/f</span>
+                            <span v-else class="ldr-pill" :class="typePill(record.type)">{{ record.type }}</span>
                         </template>
                         <template v-if="column.key === 'debit'">
-                            <span v-if="+record.debit !== 0" class="cl-amount-dr">{{ fmt(record.debit) }}</span>
-                            <span v-else class="cl-amount-nil">—</span>
+                            <span v-if="+record.debit" class="ldr-num ldr-num-dr">{{ fmt(record.debit) }}</span>
+                            <span v-else class="ldr-nil">—</span>
                         </template>
                         <template v-if="column.key === 'credit'">
-                            <span v-if="+record.credit !== 0" class="cl-amount-cr">{{ fmt(record.credit) }}</span>
-                            <span v-else class="cl-amount-nil">—</span>
+                            <span v-if="+record.credit" class="ldr-num ldr-num-cr">{{ fmt(record.credit) }}</span>
+                            <span v-else class="ldr-nil">—</span>
                         </template>
                         <template v-if="column.key === 'running_balance'">
-                            <span class="cl-balance" :class="record.running_balance >= 0 ? 'cl-balance-dr' : 'cl-balance-cr'">
+                            <span class="ldr-bal" :class="record.running_balance >= 0 ? 'ldr-bal-dr' : 'ldr-bal-cr'">
                                 {{ fmt(Math.abs(record.running_balance)) }}
-                                <small>{{ record.running_balance >= 0 ? 'Dr' : 'Cr' }}</small>
+                                <em>{{ record.running_balance >= 0 ? 'Dr' : 'Cr' }}</em>
                             </span>
                         </template>
                     </template>
 
-                    <!-- Expandable item rows -->
                     <template #expandedRowRender="{ record }">
-                        <div v-if="record.items && record.items.length" class="cl-expanded">
-                            <div class="cl-expanded-header">
-                                <ShoppingOutlined /> Items in <b>{{ record.reference }}</b>
-                            </div>
-                            <table class="cl-items-table">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Product</th>
-                                        <th>Code</th>
-                                        <th class="text-right">Qty</th>
-                                        <th class="text-right">Unit Price</th>
-                                        <th class="text-right">Subtotal</th>
-                                    </tr>
-                                </thead>
+                        <div v-if="record.items?.length" class="ldr-expand">
+                            <div class="ldr-expand-hd"><ShoppingOutlined /> {{ record.reference }} &mdash; Item Breakdown</div>
+                            <table class="ldr-itm-tbl">
+                                <thead><tr><th>#</th><th>Product</th><th>Code</th><th class="r">Qty</th><th class="r">Unit Price</th><th class="r">Subtotal</th></tr></thead>
                                 <tbody>
-                                    <tr v-for="(item, idx) in record.items" :key="idx">
-                                        <td class="cl-idx">{{ idx + 1 }}</td>
-                                        <td class="cl-pname">{{ item.name }}</td>
-                                        <td><code v-if="item.item_code" class="cl-code">{{ item.item_code }}</code></td>
-                                        <td class="text-right cl-qty">{{ item.qty }}</td>
-                                        <td class="text-right">PKR {{ fmt(item.unit_price) }}</td>
-                                        <td class="text-right cl-sub">PKR {{ fmt(item.subtotal) }}</td>
+                                    <tr v-for="(it,i) in record.items" :key="i">
+                                        <td class="ldr-idx">{{ i+1 }}</td>
+                                        <td class="ldr-pn">{{ it.name }}</td>
+                                        <td><code v-if="it.item_code" class="ldr-code">{{ it.item_code }}</code></td>
+                                        <td class="r ldr-qty">{{ it.qty }}</td>
+                                        <td class="r">PKR {{ fmt(it.unit_price) }}</td>
+                                        <td class="r ldr-sub">PKR {{ fmt(it.subtotal) }}</td>
                                     </tr>
                                 </tbody>
-                                <tfoot>
-                                    <tr class="cl-foot-total">
-                                        <td colspan="5" class="text-right">Total</td>
-                                        <td class="text-right">PKR {{ fmt(record.debit) }}</td>
-                                    </tr>
-                                </tfoot>
+                                <tfoot><tr class="ldr-foot"><td colspan="5" class="r">Total</td><td class="r">PKR {{ fmt(record.debit) }}</td></tr></tfoot>
                             </table>
                         </div>
-                        <div v-else class="cl-no-items">No item details available.</div>
+                        <div v-else class="ldr-no-items">No item details available.</div>
                     </template>
 
-                    <!-- Summary footer row -->
                     <template #summary>
-                        <a-table-summary-row class="cl-summary-row">
-                            <a-table-summary-cell :index="0" :col-span="3">
-                                <span class="cl-summary-label">CLOSING TOTALS</span>
-                            </a-table-summary-cell>
-                            <a-table-summary-cell :index="3" align="right">
-                                <span class="cl-summary-dr">{{ fmt(openingBalance > 0 ? openingBalance + totalDebit : totalDebit) }}</span>
-                            </a-table-summary-cell>
-                            <a-table-summary-cell :index="4" align="right">
-                                <span class="cl-summary-cr">{{ fmt(openingBalance < 0 ? Math.abs(openingBalance) + totalCredit : totalCredit) }}</span>
-                            </a-table-summary-cell>
+                        <a-table-summary-row class="ldr-summary">
+                            <a-table-summary-cell :index="0" :col-span="3"><span class="ldr-sum-lbl">CLOSING TOTALS</span></a-table-summary-cell>
+                            <a-table-summary-cell :index="3" align="right"><span class="ldr-sum-dr">{{ fmt(openingBalance>0 ? openingBalance+totalDebit : totalDebit) }}</span></a-table-summary-cell>
+                            <a-table-summary-cell :index="4" align="right"><span class="ldr-sum-cr">{{ fmt(openingBalance<0 ? Math.abs(openingBalance)+totalCredit : totalCredit) }}</span></a-table-summary-cell>
                             <a-table-summary-cell :index="5" align="right">
-                                <span class="cl-summary-bal" :class="closingBalance >= 0 ? 'cl-summary-bal-dr' : 'cl-summary-bal-cr'">
-                                    PKR {{ fmt(Math.abs(closingBalance)) }} {{ closingBalance >= 0 ? 'Dr' : 'Cr' }}
+                                <span class="ldr-sum-bal" :class="closingBalance>=0?'ldr-sum-dr':'ldr-sum-cr'">
+                                    PKR {{ fmt(Math.abs(closingBalance)) }} {{ closingBalance>=0?'Dr':'Cr' }}
                                 </span>
                             </a-table-summary-cell>
                         </a-table-summary-row>
                     </template>
                 </a-table>
-
-                <a-empty v-if="reportData.rows.length === 0" description="No transactions found for this period" class="mt-30" />
+                <a-empty v-if="!reportData.rows.length" description="No transactions in this period" class="ldr-empty-tbl" />
             </div>
         </div>
     </a-spin>
 
-    <!-- Invoice Detail Modal -->
-    <a-modal v-model:open="saleModalVisible" width="680px" :footer="null" :bodyStyle="{ padding: '0' }" class="cl-invoice-modal">
+    <!-- ── Invoice Modal ── -->
+    <a-modal v-model:open="saleModalVisible" :footer="null" width="700px" class="ldr-modal">
         <template #title>
-            <div class="cl-modal-title">
-                <FileTextOutlined style="color:#2563eb;margin-right:8px;" />
-                Invoice &mdash; {{ selectedSale ? selectedSale.reference : '' }}
+            <div class="ldr-modal-hd">
+                <span class="ldr-modal-ico"><FileTextOutlined /></span>
+                Invoice — {{ selectedSale?.reference }}
             </div>
         </template>
-        <div v-if="selectedSale" class="cl-modal-body">
-            <div class="cl-modal-meta">
-                <div class="cl-meta-item">
-                    <span class="cl-meta-label">Invoice No.</span>
-                    <span class="cl-meta-value cl-meta-bold">{{ selectedSale.reference }}</span>
-                </div>
-                <div class="cl-meta-item">
-                    <span class="cl-meta-label">Date</span>
-                    <span class="cl-meta-value">{{ selectedSale.date }}</span>
-                </div>
-                <div class="cl-meta-item">
-                    <span class="cl-meta-label">Total Amount</span>
-                    <span class="cl-meta-value cl-meta-total">PKR {{ fmt(selectedSale.debit) }}</span>
-                </div>
+        <div v-if="selectedSale" class="ldr-modal-body">
+            <div class="ldr-modal-meta">
+                <div class="ldr-meta-blk"><span class="ldr-meta-k">Invoice</span><span class="ldr-meta-v ldr-meta-ref">{{ selectedSale.reference }}</span></div>
+                <div class="ldr-meta-blk"><span class="ldr-meta-k">Date</span><span class="ldr-meta-v">{{ selectedSale.date }}</span></div>
+                <div class="ldr-meta-blk"><span class="ldr-meta-k">Total</span><span class="ldr-meta-v ldr-meta-total">PKR {{ fmt(selectedSale.debit) }}</span></div>
             </div>
-            <table class="cl-modal-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Product</th>
-                        <th>Code</th>
-                        <th class="text-right">Qty</th>
-                        <th class="text-right">Unit Price</th>
-                        <th class="text-right">Subtotal</th>
-                    </tr>
-                </thead>
+            <table class="ldr-itm-tbl ldr-modal-tbl">
+                <thead><tr><th>#</th><th>Product</th><th>Code</th><th class="r">Qty</th><th class="r">Unit Price</th><th class="r">Subtotal</th></tr></thead>
                 <tbody>
-                    <tr v-for="(item, idx) in selectedSale.items" :key="idx">
-                        <td class="cl-idx">{{ idx + 1 }}</td>
-                        <td class="cl-pname">{{ item.name }}</td>
-                        <td><code v-if="item.item_code" class="cl-code">{{ item.item_code }}</code></td>
-                        <td class="text-right cl-qty">{{ item.qty }}</td>
-                        <td class="text-right">PKR {{ fmt(item.unit_price) }}</td>
-                        <td class="text-right cl-sub">PKR {{ fmt(item.subtotal) }}</td>
+                    <tr v-for="(it,i) in selectedSale.items" :key="i">
+                        <td class="ldr-idx">{{ i+1 }}</td>
+                        <td class="ldr-pn">{{ it.name }}</td>
+                        <td><code v-if="it.item_code" class="ldr-code">{{ it.item_code }}</code></td>
+                        <td class="r ldr-qty">{{ it.qty }}</td>
+                        <td class="r">PKR {{ fmt(it.unit_price) }}</td>
+                        <td class="r ldr-sub">PKR {{ fmt(it.subtotal) }}</td>
                     </tr>
                 </tbody>
-                <tfoot>
-                    <tr class="cl-foot-total">
-                        <td colspan="5" class="text-right">Grand Total</td>
-                        <td class="text-right">PKR {{ fmt(selectedSale.debit) }}</td>
-                    </tr>
-                </tfoot>
+                <tfoot><tr class="ldr-foot"><td colspan="5" class="r">Grand Total</td><td class="r">PKR {{ fmt(selectedSale.debit) }}</td></tr></tfoot>
             </table>
         </div>
     </a-modal>
@@ -292,8 +255,8 @@
 import { defineComponent, ref, computed, onMounted } from 'vue';
 import {
     PrinterOutlined, SearchOutlined, ShoppingOutlined, SyncOutlined,
-    FileTextOutlined, UserOutlined, CalendarOutlined, AccountBookOutlined,
-    DollarOutlined, ShoppingCartOutlined, CheckCircleOutlined, WalletOutlined,
+    FileTextOutlined, UserOutlined, CalendarOutlined, DollarOutlined,
+    CheckCircleOutlined, WalletOutlined, BarChartOutlined,
 } from '@ant-design/icons-vue';
 import { message, notification } from 'ant-design-vue';
 import AdminPageHeader from '../../../../common/layouts/AdminPageHeader.vue';
@@ -302,8 +265,8 @@ import dayjs from 'dayjs';
 export default defineComponent({
     components: {
         AdminPageHeader, PrinterOutlined, SearchOutlined, ShoppingOutlined, SyncOutlined,
-        FileTextOutlined, UserOutlined, CalendarOutlined, AccountBookOutlined,
-        DollarOutlined, ShoppingCartOutlined, CheckCircleOutlined, WalletOutlined,
+        FileTextOutlined, UserOutlined, CalendarOutlined, DollarOutlined,
+        CheckCircleOutlined, WalletOutlined, BarChartOutlined,
     },
     setup() {
         const axiosAdmin  = window.axiosAdmin;
@@ -313,52 +276,43 @@ export default defineComponent({
         const customers   = ref([]);
         const filters     = ref({ user_id: null, date_from: dayjs().startOf('year'), date_to: dayjs() });
         const reportData  = ref({ rows: [], opening_balance: 0, customer: null, date_from: '', date_to: '' });
-
         const saleModalVisible = ref(false);
         const selectedSale     = ref(null);
-        const openSaleDetail   = (record) => { selectedSale.value = record; saleModalVisible.value = true; };
+        const openSaleDetail   = (r) => { selectedSale.value = r; saleModalVisible.value = true; };
 
         const expandedRowKeys = ref([]);
         const expandable = computed(() => ({
             expandedRowKeys: expandedRowKeys.value,
             onExpand: (expanded, record) => {
                 const key = tableRows.value.indexOf(record);
-                expandedRowKeys.value = expanded
-                    ? [...expandedRowKeys.value, key]
-                    : expandedRowKeys.value.filter(k => k !== key);
+                expandedRowKeys.value = expanded ? [...expandedRowKeys.value, key] : expandedRowKeys.value.filter(k => k !== key);
             },
-            rowExpandable: (record) => record.type === 'Sale' && record.items?.length > 0,
+            rowExpandable: (r) => r.type === 'Sale' && r.items?.length > 0,
         }));
 
         const columns = [
-            { title: 'Date',      dataIndex: 'date', key: 'date',   width: 110 },
-            { title: 'Reference', key: 'reference',                  width: 200 },
-            { title: 'Type',      key: 'type',                       width: 155 },
-            { title: 'Debit (PKR)',  key: 'debit',  width: 145, align: 'right' },
-            { title: 'Credit (PKR)', key: 'credit', width: 145, align: 'right' },
-            { title: 'Balance',   key: 'running_balance',            align: 'right' },
+            { title: 'Date',         dataIndex: 'date', key: 'date',  width: 108 },
+            { title: 'Reference',    key: 'reference',                 width: 200 },
+            { title: 'Type',         key: 'type',                      width: 152 },
+            { title: 'Debit (PKR)',  key: 'debit',  width: 140, align: 'right' },
+            { title: 'Credit (PKR)', key: 'credit', width: 140, align: 'right' },
+            { title: 'Balance',      key: 'running_balance',           align: 'right' },
         ];
 
-        const fmt         = (v) => Number(v || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 });
-        const formatDate  = (d) => d ? dayjs(d).format('DD MMM YYYY') : '';
+        const fmt          = (v) => Number(v || 0).toLocaleString('en-PK', { minimumFractionDigits: 2 });
+        const formatDate   = (d) => d ? dayjs(d).format('DD MMM YYYY') : '';
         const filterOption = (input, option) => option.children?.()[0]?.children?.toLowerCase().includes(input.toLowerCase());
-
-        const typeClass = (t) => ({ 'Sale': 'cl-pill-sale', 'Sales Return': 'cl-pill-return', 'Payment Received': 'cl-pill-payment' })[t] || '';
-        const typeDot   = (t) => ({ 'Sale': 'cl-dot-blue', 'Sales Return': 'cl-dot-orange', 'Payment Received': 'cl-dot-green' })[t] || '';
-        const rowClass  = (r) => r._is_opening ? 'cl-row-ob' : (r.type === 'Sale' ? 'cl-row-sale' : r.type === 'Payment Received' ? 'cl-row-payment' : '');
+        const typePill     = (t) => ({ 'Sale': 'ldr-pill-sale', 'Sales Return': 'ldr-pill-return', 'Payment Received': 'ldr-pill-pay' })[t] || '';
+        const rowClass     = (r) => r._is_opening ? 'ldr-row-ob' : r.type === 'Payment Received' ? 'ldr-row-pay' : '';
 
         const openingBalance = computed(() => reportData.value.opening_balance ?? 0);
-        const totalDebit     = computed(() => reportData.value.rows.reduce((s, r) => s + +r.debit,  0));
-        const totalCredit    = computed(() => reportData.value.rows.reduce((s, r) => s + +r.credit, 0));
+        const totalDebit     = computed(() => reportData.value.rows.reduce((s,r) => s + +r.debit, 0));
+        const totalCredit    = computed(() => reportData.value.rows.reduce((s,r) => s + +r.credit, 0));
         const closingBalance = computed(() => openingBalance.value + totalDebit.value - totalCredit.value);
 
         const tableRows = computed(() => {
             const ob = openingBalance.value;
-            return [{
-                date: reportData.value.date_from, reference: '—', type: 'Opening Balance',
-                debit: ob > 0 ? ob : 0, credit: ob < 0 ? Math.abs(ob) : 0,
-                running_balance: ob, items: [], _is_opening: true,
-            }, ...reportData.value.rows];
+            return [{ date: reportData.value.date_from, reference:'—', type:'Opening Balance', debit: ob>0?ob:0, credit: ob<0?Math.abs(ob):0, running_balance: ob, items:[], _is_opening:true }, ...reportData.value.rows];
         });
 
         const loadCustomers = async () => {
@@ -369,15 +323,9 @@ export default defineComponent({
         const load = async () => {
             loading.value = true; generated.value = true; expandedRowKeys.value = [];
             try {
-                const res = await axiosAdmin.get('accounting/reports/customer-ledger', {
-                    params: {
-                        user_id:   filters.value.user_id || undefined,
-                        date_from: filters.value.date_from?.format('YYYY-MM-DD'),
-                        date_to:   filters.value.date_to?.format('YYYY-MM-DD'),
-                    }
-                });
+                const res = await axiosAdmin.get('accounting/reports/customer-ledger', { params: { user_id: filters.value.user_id||undefined, date_from: filters.value.date_from?.format('YYYY-MM-DD'), date_to: filters.value.date_to?.format('YYYY-MM-DD') } });
                 reportData.value = res.data;
-            } catch (e) { message.error('Failed to load ledger'); }
+            } catch { message.error('Failed to load ledger'); }
             finally { loading.value = false; }
         };
 
@@ -386,9 +334,9 @@ export default defineComponent({
             try {
                 const res = await axiosAdmin.post('accounting/backfill-jes');
                 const d = res.data;
-                notification.success({ message: 'JE Backfill Complete', description: `Generated: ${d.generated} | Skipped: ${d.skipped} | Failed: ${d.failed?.length ?? 0}`, duration: 8 });
-                if (d.warnings?.length) notification.warning({ message: 'Backfill Warnings', description: d.warnings.slice(0,5).join('\n'), duration: 0, style: { whiteSpace:'pre-line' } });
-            } catch (e) { message.error('Backfill failed: ' + (e.response?.data?.message || e.message)); }
+                notification.success({ message:'JE Backfill Complete', description:`Generated: ${d.generated} | Skipped: ${d.skipped} | Failed: ${d.failed?.length??0}`, duration:8 });
+                if (d.warnings?.length) notification.warning({ message:'Backfill Warnings', description: d.warnings.slice(0,5).join('\n'), duration:0 });
+            } catch(e) { message.error('Backfill failed'); }
             finally { backfilling.value = false; }
         };
 
@@ -396,9 +344,8 @@ export default defineComponent({
         onMounted(loadCustomers);
 
         return {
-            loading, generated, backfilling, customers, filters, reportData, tableRows, columns,
-            expandable, expandedRowKeys, fmt, formatDate, filterOption, typeClass, typeDot, rowClass,
-            openingBalance, totalDebit, totalCredit, closingBalance,
+            loading, generated, backfilling, customers, filters, reportData, tableRows, columns, expandable, expandedRowKeys,
+            fmt, formatDate, filterOption, typePill, rowClass, openingBalance, totalDebit, totalCredit, closingBalance,
             load, print, backfillJEs, saleModalVisible, selectedSale, openSaleDetail,
         };
     }
@@ -406,167 +353,245 @@ export default defineComponent({
 </script>
 
 <style scoped>
-/* ─── Filter Bar ────────────────────────────────────────────── */
-.cl-filter-card {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+/* ══ SHARED BASE ══════════════════════════════════════════════════ */
+.r { text-align: right; }
+
+/* ══ HERO SECTION ════════════════════════════════════════════════ */
+.ldr-hero {
+    position: relative; overflow: hidden;
+    border-radius: 20px; margin-bottom: 20px;
+    padding: 28px 32px 0;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1d4ed8 100%);
+    box-shadow: 0 20px 60px -10px rgba(29,78,216,.45);
 }
-.cl-filter-inner { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.cl-filter-icon {
-    font-size: 22px; color: #2563eb;
-    background: #eff6ff; border-radius: 10px;
-    width: 44px; height: 44px;
+.ldr-hero-glow {
+    position: absolute; border-radius: 50%; pointer-events: none;
+    filter: blur(60px); opacity: .35;
+}
+.ldr-glow-1 { width: 340px; height: 340px; background: #3b82f6; top: -100px; right: -80px; }
+.ldr-glow-2 { width: 200px; height: 200px; background: #818cf8; bottom: 0; left: 40px; }
+
+.ldr-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+
+.ldr-hero-title { display: flex; align-items: center; gap: 18px; }
+.ldr-hero-icon {
+    font-size: 28px; color: #fff;
+    background: rgba(255,255,255,.15);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 16px;
+    width: 60px; height: 60px;
     display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; margin-bottom: 2px;
+    flex-shrink: 0;
 }
-.cl-filter-group { display: flex; flex-direction: column; gap: 4px; min-width: 180px; flex: 1; }
-.cl-label { font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .4px; }
-.cl-select, .cl-date-picker { width: 100%; border-radius: 8px !important; }
-.cl-filter-actions { display: flex; gap: 10px; padding-bottom: 1px; }
-.cl-btn-generate { border-radius: 8px !important; background: linear-gradient(135deg,#2563eb,#1d4ed8) !important; border: none !important; font-weight: 600 !important; height: 36px !important; padding: 0 20px !important; }
-.cl-btn-backfill { border-radius: 8px !important; height: 36px !important; }
+.ldr-h1 { font-size: 24px; font-weight: 800; color: #fff; margin: 0 0 4px; letter-spacing: -.4px; }
+.ldr-sub { font-size: 13px; color: rgba(255,255,255,.6); margin: 0; }
 
-/* ─── Empty State ───────────────────────────────────────────── */
-.cl-empty-state { text-align: center; padding: 70px 20px; }
-.cl-empty-icon { font-size: 56px; color: #cbd5e1; display: block; margin-bottom: 16px; }
-.cl-empty-title { font-size: 17px; font-weight: 700; color: #475569; margin: 0 0 6px; }
-.cl-empty-sub { color: #94a3b8; font-size: 13.5px; margin: 0; }
-
-/* ─── Report Header ─────────────────────────────────────────── */
-.cl-report-header {
-    background: linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%);
-    border-radius: 14px;
-    padding: 24px 28px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-    color: #fff;
+.ldr-hero-kpi-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.ldr-kpi {
+    padding: 10px 18px; border-radius: 12px;
+    text-align: center; min-width: 130px;
 }
-.cl-report-badge { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; opacity: .75; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-.cl-report-title { font-size: 22px; font-weight: 800; margin: 0 0 4px; color: #fff; }
-.cl-report-period { font-size: 13px; opacity: .8; margin: 0; display: flex; align-items: center; gap: 6px; }
-.cl-stat-chip { text-align: right; background: rgba(255,255,255,.15); border-radius: 12px; padding: 12px 18px; backdrop-filter: blur(4px); }
-.cl-chip-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; opacity: .75; margin-bottom: 4px; }
-.cl-chip-value { display: block; font-size: 24px; font-weight: 800; line-height: 1; }
-.cl-chip-tag { display: inline-block; margin-top: 6px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
-.cl-chip-dr .cl-chip-tag { background: #fee2e2; color: #b91c1c; }
-.cl-chip-cr .cl-chip-tag { background: #dcfce7; color: #15803d; }
+.ldr-kpi-glass {
+    background: rgba(255,255,255,.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.2);
+}
+.ldr-kpi-due  { background: rgba(239,68,68,.25) !important; border-color: rgba(239,68,68,.4) !important; }
+.ldr-kpi-ok   { background: rgba(16,185,129,.25) !important; border-color: rgba(16,185,129,.4) !important; }
+.ldr-kpi-val  { font-size: 15px; font-weight: 800; color: #fff; }
+.ldr-kpi-lbl  { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.65); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
 
-/* ─── Summary Cards ─────────────────────────────────────────── */
-.cl-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
-.cl-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 18px 20px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
+/* ── Filters ── */
+.ldr-filters {
+    display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;
+    background: rgba(255,255,255,.07);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(255,255,255,.12);
+    padding: 18px 0 20px;
+    margin: 0 -32px; padding-left: 32px; padding-right: 32px;
+}
+.ldr-filter-field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 170px; }
+.ldr-filter-sm { max-width: 180px; }
+.ldr-filter-label { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.65); text-transform: uppercase; letter-spacing: .6px; display: flex; align-items: center; gap: 5px; }
+.ldr-input { border-radius: 10px !important; }
+
+.ldr-filter-actions { display: flex; gap: 8px; padding-bottom: 1px; }
+.ldr-gen-btn {
+    display: flex; align-items: center; gap: 7px;
+    background: #fff; color: #1e3a8a;
+    border: none; border-radius: 10px;
+    font-size: 13.5px; font-weight: 700;
+    padding: 0 22px; height: 36px; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+    transition: all .2s;
+}
+.ldr-gen-btn:hover:not(:disabled) { background: #f0f9ff; transform: translateY(-1px); }
+.ldr-gen-btn:disabled { opacity: .6; cursor: not-allowed; }
+.ldr-back-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.15); color: #fff;
+    border: 1px solid rgba(255,255,255,.3); border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    padding: 0 16px; height: 36px; cursor: pointer;
+    backdrop-filter: blur(8px); transition: all .2s;
+}
+.ldr-back-btn:hover:not(:disabled) { background: rgba(255,255,255,.25); }
+.ldr-back-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.ldr-print-btn { border-radius: 8px !important; }
+
+/* ── Spinner ── */
+.ldr-spinner {
+    width: 14px; height: 14px; border: 2px solid #1e3a8a;
+    border-top-color: transparent; border-radius: 50%;
+    animation: spin .7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ══ IDLE STATE ══════════════════════════════════════════════════ */
+.ldr-idle { text-align: center; padding: 80px 20px; }
+.ldr-idle-ring {
+    width: 90px; height: 90px; border-radius: 50%;
+    background: linear-gradient(135deg,#eff6ff,#dbeafe);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+    box-shadow: 0 0 0 12px rgba(59,130,246,.08);
+}
+.ldr-idle-ico { font-size: 40px; color: #3b82f6; }
+.ldr-idle-h { font-size: 18px; font-weight: 700; color: #1e293b; margin: 0 0 8px; }
+.ldr-idle-p { font-size: 14px; color: #94a3b8; margin: 0; }
+
+/* ══ BODY ════════════════════════════════════════════════════════ */
+.ldr-body { display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Stat strip ── */
+.ldr-stat-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+.ldr-stat {
+    border-radius: 16px; padding: 18px 20px;
+    display: flex; align-items: center; gap: 16px;
+    border: 1px solid transparent;
+    transition: transform .15s;
+}
+.ldr-stat:hover { transform: translateY(-2px); }
+.ldr-stat-neutral { background: #f8fafc; border-color: #e2e8f0; }
+.ldr-stat-blue    { background: linear-gradient(135deg,#eff6ff,#dbeafe); border-color: #bfdbfe; }
+.ldr-stat-green   { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border-color: #bbf7d0; }
+.ldr-stat-red     { background: linear-gradient(135deg,#fff1f2,#ffe4e6); border-color: #fecdd3; }
+.ldr-stat-emerald { background: linear-gradient(135deg,#ecfdf5,#d1fae5); border-color: #a7f3d0; }
+
+.ldr-stat-icon { font-size: 20px; border-radius: 10px; width: 44px; height: 44px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ldr-stat-neutral .ldr-stat-icon { background:#e2e8f0; color:#475569; }
+.ldr-stat-blue    .ldr-stat-icon { background:#dbeafe; color:#1d4ed8; }
+.ldr-stat-green   .ldr-stat-icon { background:#dcfce7; color:#16a34a; }
+.ldr-stat-red     .ldr-stat-icon { background:#fecdd3; color:#dc2626; }
+.ldr-stat-emerald .ldr-stat-icon { background:#a7f3d0; color:#059669; }
+
+.ldr-stat-num  { font-size: 16px; font-weight: 800; color: #0f172a; line-height: 1.1; }
+.ldr-stat-lbl  { font-size: 11px; font-weight: 600; color: #64748b; margin: 3px 0 2px; text-transform: uppercase; letter-spacing: .4px; }
+.ldr-stat-tag  { font-size: 11px; color: #94a3b8; }
+
+/* ── Table card ── */
+.ldr-table-card {
+    background: #fff; border-radius: 18px;
     border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    box-shadow: 0 4px 24px rgba(0,0,0,.06);
+    overflow: hidden;
 }
-.cl-card-icon { font-size: 22px; border-radius: 10px; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.cl-card-label { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
-.cl-card-value { font-size: 17px; font-weight: 800; color: #1e293b; line-height: 1.2; }
-.cl-card-sub { font-size: 11px; color: #94a3b8; margin-top: 3px; }
-.cl-card-ob     .cl-card-icon { background: #f1f5f9; color: #64748b; }
-.cl-card-sales  .cl-card-icon { background: #eff6ff; color: #2563eb; }
-.cl-card-payments .cl-card-icon { background: #f0fdf4; color: #16a34a; }
-.cl-card-due    .cl-card-icon { background: #fff7ed; color: #ea580c; }
-.cl-card-advance .cl-card-icon { background: #f0fdf4; color: #15803d; }
-.cl-card-sales .cl-card-value { color: #2563eb; }
-.cl-card-payments .cl-card-value { color: #16a34a; }
-.cl-card-due .cl-card-value { color: #ea580c; }
-.cl-card-advance .cl-card-value { color: #15803d; }
+.ldr-table-header {
+    padding: 16px 22px; border-bottom: 1px solid #f1f5f9;
+    display: flex; align-items: center; justify-content: space-between;
+    background: #fafbfc;
+}
+.ldr-table-title { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; color: #0f172a; }
+.ldr-table-dot { width: 10px; height: 10px; border-radius: 50%; }
+.ldr-dot-blue { background: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.2); }
+.ldr-table-count { font-size: 11px; font-weight: 600; background: #f1f5f9; color: #64748b; padding: 2px 8px; border-radius: 20px; }
+.ldr-table-meta { font-size: 12px; color: #94a3b8; }
+.ldr-table-customer { color: #2563eb; font-weight: 600; }
 
-/* ─── Table ─────────────────────────────────────────────────── */
-.cl-table-wrapper { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
-.cl-date-cell { font-size: 12.5px; color: #64748b; }
-.cl-ob-ref { color: #94a3b8; font-style: italic; font-size: 12px; }
-.cl-ref-link { color: #2563eb; font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; }
-.cl-ref-link:hover { color: #1d4ed8; text-decoration: underline; }
-.cl-ref-plain { color: #475569; font-size: 13px; }
+/* ── Table cells ── */
+.ldr-date { font-size: 12.5px; color: #64748b; font-variant-numeric: tabular-nums; }
+.ldr-ob-ref { font-size: 12px; color: #94a3b8; font-style: italic; font-weight: 600; }
+.ldr-ref-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: #1d4ed8; font-weight: 700; font-size: 13px;
+    cursor: pointer; transition: color .15s;
+}
+.ldr-ref-link:hover { color: #1e40af; text-decoration: underline; }
+.ldr-ref-icon { font-size: 11px; opacity: .7; }
+.ldr-ref-badge {
+    background: #2563eb; color: #fff;
+    font-size: 9px; font-weight: 800;
+    width: 17px; height: 17px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.ldr-ref-plain { color: #475569; font-size: 13px; font-weight: 500; }
 
-/* type pills */
-.cl-type-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
-.cl-type-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.cl-type-ob { color: #94a3b8; font-style: italic; font-size: 12px; display: flex; align-items: center; gap: 5px; }
-.cl-pill-sale     { background: #eff6ff; color: #1d4ed8; }
-.cl-pill-return   { background: #fff7ed; color: #c2410c; }
-.cl-pill-payment  { background: #f0fdf4; color: #15803d; }
-.cl-dot-blue   { background: #2563eb; }
-.cl-dot-orange { background: #f97316; }
-.cl-dot-green  { background: #16a34a; }
-.cl-dot-gray   { background: #94a3b8; }
+/* pills */
+.ldr-pill { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700; padding: 3px 11px; border-radius: 20px; gap: 4px; }
+.ldr-pill-ob      { background: #f1f5f9; color: #64748b; }
+.ldr-pill-sale    { background: #dbeafe; color: #1d4ed8; }
+.ldr-pill-return  { background: #ffedd5; color: #c2410c; }
+.ldr-pill-pay     { background: #dcfce7; color: #15803d; }
 
-/* amounts */
-.cl-amount-dr  { color: #1d4ed8; font-weight: 700; font-size: 13px; }
-.cl-amount-cr  { color: #15803d; font-weight: 700; font-size: 13px; }
-.cl-amount-nil { color: #cbd5e1; }
-.cl-balance    { font-weight: 800; font-size: 13.5px; }
-.cl-balance small { font-size: 10px; margin-left: 3px; font-weight: 600; }
-.cl-balance-dr { color: #b91c1c; }
-.cl-balance-cr { color: #15803d; }
+/* numbers */
+.ldr-num    { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ldr-num-dr { color: #1d4ed8; }
+.ldr-num-cr { color: #15803d; }
+.ldr-nil    { color: #cbd5e1; }
+.ldr-bal    { font-size: 13.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ldr-bal em { font-size: 9.5px; font-style: normal; font-weight: 700; margin-left: 3px; opacity: .75; }
+.ldr-bal-dr { color: #dc2626; }
+.ldr-bal-cr { color: #059669; }
 
 /* row tints */
-:deep(.cl-row-ob > td)      { background: #fefce8 !important; }
-:deep(.cl-row-payment > td) { background: #f0fdf4 !important; }
+:deep(.ldr-row-ob  > td) { background: #fefce8 !important; }
+:deep(.ldr-row-pay > td) { background: #f0fdf4 !important; }
 
-/* summary row */
-:deep(.cl-summary-row > td) { background: #1e293b !important; }
-.cl-summary-label { color: #cbd5e1; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
-.cl-summary-dr  { color: #93c5fd; font-weight: 700; font-size: 13px; }
-.cl-summary-cr  { color: #86efac; font-weight: 700; font-size: 13px; }
-.cl-summary-bal { font-size: 14px; font-weight: 800; }
-.cl-summary-bal-dr { color: #fca5a5; }
-.cl-summary-bal-cr { color: #86efac; }
+/* summary */
+:deep(.ldr-summary > td) { background: #0f172a !important; padding-top: 12px !important; padding-bottom: 12px !important; }
+.ldr-sum-lbl  { color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+.ldr-sum-dr   { color: #93c5fd; font-weight: 800; font-size: 13px; }
+.ldr-sum-cr   { color: #86efac; font-weight: 800; font-size: 13px; }
+.ldr-sum-bal  { font-size: 14px; font-weight: 800; }
 
-/* ─── Expandable Panel ──────────────────────────────────────── */
-.cl-expanded { background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; padding: 14px 16px; }
-.cl-expanded-header { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
-.cl-no-items { color: #94a3b8; font-size: 12px; padding: 8px; }
+.ldr-empty-tbl { padding: 40px; }
 
-/* ─── Items Table (shared) ──────────────────────────────────── */
-.cl-items-table, .cl-modal-table {
-    width: 100%; border-collapse: collapse; font-size: 12.5px;
-}
-.cl-items-table thead tr, .cl-modal-table thead tr { background: #f1f5f9; }
-.cl-items-table th, .cl-modal-table th {
-    padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 700;
-    color: #64748b; text-transform: uppercase; letter-spacing: .4px;
-    border-bottom: 2px solid #e2e8f0;
-}
-.cl-items-table td, .cl-modal-table td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-.cl-items-table tbody tr:hover td, .cl-modal-table tbody tr:hover td { background: #f8fafc; }
-.cl-foot-total td { background: #1e293b; color: #f1f5f9; font-weight: 700; padding: 10px 12px; }
-.cl-idx    { color: #94a3b8; width: 28px; font-size: 11px; }
-.cl-pname  { font-weight: 600; color: #1e293b; }
-.cl-code   { background: #f1f5f9; border-radius: 4px; padding: 1px 7px; font-size: 11px; color: #475569; font-family: monospace; }
-.cl-qty    { font-weight: 700; color: #2563eb; }
-.cl-sub    { font-weight: 700; color: #15803d; }
-.text-right { text-align: right; }
+/* ── Expand panel ── */
+.ldr-expand { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; }
+.ldr-expand-hd { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 12px; display:flex; align-items:center; gap:7px; }
+.ldr-no-items { color: #94a3b8; font-size: 12.5px; padding: 8px; }
 
-/* ─── Invoice Modal ─────────────────────────────────────────── */
-.cl-modal-title { font-size: 15px; font-weight: 700; color: #1e293b; }
-.cl-modal-body { padding: 0 }
-.cl-modal-meta {
-    display: flex; gap: 0; border-bottom: 1px solid #e2e8f0;
-    padding: 16px 24px; background: #f8fafc;
-}
-.cl-meta-item { flex: 1; }
-.cl-meta-label { display: block; font-size: 10.5px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
-.cl-meta-value { display: block; font-size: 14px; color: #1e293b; font-weight: 500; }
-.cl-meta-bold  { font-weight: 700; }
-.cl-meta-total { color: #2563eb; font-weight: 800; font-size: 16px; }
-.cl-modal-table { border-radius: 0; }
-.cl-modal-table thead tr { background: #f8fafc; }
+/* ── Items table ── */
+.ldr-itm-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ldr-itm-tbl thead tr { background: #f1f5f9; }
+.ldr-itm-tbl th { padding: 8px 12px; font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .4px; border-bottom: 2px solid #e2e8f0; text-align: left; }
+.ldr-itm-tbl td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; }
+.ldr-itm-tbl tbody tr:hover td { background: #f8fafc; }
+.ldr-idx  { color: #cbd5e1; font-size: 11px; width: 28px; }
+.ldr-pn   { font-weight: 600; color: #1e293b; }
+.ldr-code { background: #f1f5f9; border-radius: 5px; padding: 1px 7px; font-size: 11px; color: #475569; font-family: monospace; }
+.ldr-qty  { font-weight: 700; color: #2563eb; }
+.ldr-sub  { font-weight: 700; color: #15803d; }
+.ldr-foot td { background: #1e293b; color: #f1f5f9; font-weight: 700; padding: 10px 12px; }
+
+/* ── Modal ── */
+.ldr-modal-hd { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: #0f172a; }
+.ldr-modal-ico { font-size: 18px; color: #2563eb; background: #dbeafe; border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+.ldr-modal-body { }
+.ldr-modal-meta { display: flex; gap: 0; border-bottom: 1px solid #f1f5f9; padding: 16px 24px; background: #f8fafc; }
+.ldr-meta-blk { flex: 1; }
+.ldr-meta-k { display: block; font-size: 10.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+.ldr-meta-v { font-size: 14px; color: #1e293b; font-weight: 500; }
+.ldr-meta-ref   { font-weight: 700; }
+.ldr-meta-total { color: #1d4ed8; font-weight: 800; font-size: 17px; }
+.ldr-modal-tbl thead tr { background: #f8fafc !important; }
+.ldr-modal-tbl th { padding: 10px 16px !important; }
+.ldr-modal-tbl td { padding: 10px 16px !important; }
 
 @media print {
-    .cl-filter-card, .cl-btn-generate, .cl-btn-backfill { display: none !important; }
-    .cl-report-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .ldr-hero { box-shadow: none; }
+    .ldr-filters, .ldr-gen-btn, .ldr-back-btn, .ldr-print-btn { display: none !important; }
 }
 </style>
