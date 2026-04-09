@@ -107,7 +107,42 @@ class AccountingController extends ApiBaseController
         if ($request->date_to)   $q->where('entry_date', '<=', $request->date_to);
 
         $entries = $q->paginate($request->per_page ?? 20);
-        return $this->sendResponse($entries->toArray(), '');
+        $data = $entries->toArray();
+        $data['data'] = array_map(fn($e) => $this->attachOrderItems($e), $data['data']);
+        return $this->sendResponse($data, '');
+    }
+
+    private function attachOrderItems(array $entry): array
+    {
+        if (empty($entry['reference'])) {
+            $entry['order_items'] = [];
+            return $entry;
+        }
+        $order = \DB::table('orders')
+            ->where('invoice_number', $entry['reference'])
+            ->first();
+        if (!$order) {
+            $entry['order_items'] = [];
+            return $entry;
+        }
+        $entry['order_type'] = $order->order_type ?? null;
+        $entry['order_status'] = $order->order_status ?? null;
+        $entry['order_items'] = \DB::table('order_items as oi')
+            ->join('products as p', 'p.id', '=', 'oi.product_id')
+            ->where('oi.order_id', $order->id)
+            ->select(
+                'p.name as product_name',
+                'p.item_code',
+                'oi.quantity',
+                'oi.unit_price',
+                'oi.subtotal',
+                'oi.discount_rate',
+                'oi.total_discount',
+                'oi.total_tax'
+            )
+            ->get()
+            ->toArray();
+        return $entry;
     }
 
     public function journalStore(Request $request)
@@ -164,7 +199,8 @@ class AccountingController extends ApiBaseController
     public function journalShow($id)
     {
         $entry = JournalEntry::with('lines.account')->findOrFail($id);
-        return $this->sendResponse(['data' => $entry], '');
+        $data = $this->attachOrderItems($entry->toArray());
+        return $this->sendResponse(['data' => $data], '');
     }
 
     public function journalDestroy($id)
