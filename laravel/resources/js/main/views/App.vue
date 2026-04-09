@@ -5,9 +5,10 @@
                 <a-config-provider
                     :theme="{
                         token: {
-                            colorPrimary: appSetting.primary_color,
+                            colorPrimary: '#1677ff',
+                            colorLink: '#1677ff',
                             fontFamily: 'Nunito,sans-serif',
-                            borderRadius: 4,
+                            borderRadius: 6,
                         },
                     }"
                     :direction="appSetting.rtl ? 'rtl' : 'ltr'"

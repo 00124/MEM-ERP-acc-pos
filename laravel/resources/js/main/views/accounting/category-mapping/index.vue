@@ -364,16 +364,16 @@ export default defineComponent({
 }
 .cam-save-all-btn {
     border-radius: 8px !important; font-weight: 700 !important;
-    background: #d97706 !important; border-color: #d97706 !important;
+    background: #1677ff !important; border-color: #1677ff !important;
     display: inline-flex; align-items: center; gap: 6px;
 }
-.cam-save-all-btn:hover { background: #b45309 !important; border-color: #b45309 !important; }
+.cam-save-all-btn:hover { background: #0958d9 !important; border-color: #0958d9 !important; }
 .cam-save-all-btn-sm {
     border-radius: 8px !important; font-weight: 700 !important;
-    background: #d97706 !important; border-color: #d97706 !important;
+    background: #1677ff !important; border-color: #1677ff !important;
     display: inline-flex; align-items: center; gap: 6px;
 }
-.cam-save-all-btn-sm:hover { background: #b45309 !important; border-color: #b45309 !important; }
+.cam-save-all-btn-sm:hover { background: #0958d9 !important; border-color: #0958d9 !important; }
 .cam-dirty-badge {
     background: rgba(255,255,255,.3); border-radius: 20px;
     padding: 0 7px; font-size: 11px; font-weight: 800;

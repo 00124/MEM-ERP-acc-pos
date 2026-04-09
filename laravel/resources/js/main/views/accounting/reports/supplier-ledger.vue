@@ -406,14 +406,14 @@ export default defineComponent({
 .sl-filter-actions { display:flex; gap:8px; padding-bottom:1px; }
 .sl-gen-btn {
     display:flex; align-items:center; gap:7px;
-    background:#7c3aed; color:#fff;
+    background:#1677ff; color:#fff;
     border:none; border-radius:10px;
     font-size:13.5px; font-weight:700;
     padding:0 22px; height:36px; cursor:pointer;
-    box-shadow:0 4px 12px rgba(124,58,237,.3);
+    box-shadow:0 4px 12px rgba(22,119,255,.3);
     transition:all .2s;
 }
-.sl-gen-btn:hover:not(:disabled) { background:#4c1d95; transform:translateY(-1px); }
+.sl-gen-btn:hover:not(:disabled) { background:#0958d9; transform:translateY(-1px); }
 .sl-gen-btn:disabled { opacity:.6; cursor:not-allowed; }
 .sl-back-btn {
     display:flex; align-items:center; gap:6px;

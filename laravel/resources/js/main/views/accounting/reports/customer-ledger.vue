@@ -430,14 +430,14 @@ export default defineComponent({
 .ldr-filter-actions { display: flex; gap: 8px; padding-bottom: 1px; }
 .ldr-gen-btn {
     display: flex; align-items: center; gap: 7px;
-    background: #1d4ed8; color: #fff;
+    background: #1677ff; color: #fff;
     border: none; border-radius: 10px;
     font-size: 13.5px; font-weight: 700;
     padding: 0 22px; height: 36px; cursor: pointer;
-    box-shadow: 0 4px 12px rgba(29,78,216,.3);
+    box-shadow: 0 4px 12px rgba(22,119,255,.3);
     transition: all .2s;
 }
-.ldr-gen-btn:hover:not(:disabled) { background: #1e3a8a; transform: translateY(-1px); }
+.ldr-gen-btn:hover:not(:disabled) { background: #0958d9; transform: translateY(-1px); }
 .ldr-gen-btn:disabled { opacity: .6; cursor: not-allowed; }
 .ldr-back-btn {
     display: flex; align-items: center; gap: 6px;

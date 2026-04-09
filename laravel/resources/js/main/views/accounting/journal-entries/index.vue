@@ -565,8 +565,8 @@ export default defineComponent({
 }
 .je-hdr-ob  { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; margin-right: 8px; }
 .je-hdr-ob:hover  { background: #ede9fe; }
-.je-hdr-new { background: linear-gradient(135deg,#0f766e,#0d9488); color: #fff; }
-.je-hdr-new:hover { opacity: .9; transform: translateY(-1px); }
+.je-hdr-new { background: #1677ff; border-color: #1677ff; color: #fff; border-radius: 8px !important; font-weight: 700; }
+.je-hdr-new:hover { background: #0958d9 !important; border-color: #0958d9 !important; }
 
 /* ══ HERO ══════════════════════════════════════════════════════ */
 .je-hero {

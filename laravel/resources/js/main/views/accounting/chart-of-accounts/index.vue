@@ -367,10 +367,10 @@ export default defineComponent({
     color: #166534; border-radius: 20px; padding: 3px 12px;
     font-size: 12px; font-weight: 700;
 }
-.coa-add-btn { border-radius: 8px !important; font-weight: 600; background: #059669 !important; border-color: #059669 !important; }
-.coa-add-btn:hover { background: #047857 !important; border-color: #047857 !important; }
-.coa-add-btn-sm { border-radius: 8px !important; font-weight: 600; background: #059669 !important; border-color: #059669 !important; }
-.coa-add-btn-sm:hover { background: #047857 !important; border-color: #047857 !important; }
+.coa-add-btn { border-radius: 8px !important; font-weight: 600; background: #1677ff !important; border-color: #1677ff !important; }
+.coa-add-btn:hover { background: #0958d9 !important; border-color: #0958d9 !important; }
+.coa-add-btn-sm { border-radius: 8px !important; font-weight: 600; background: #1677ff !important; border-color: #1677ff !important; }
+.coa-add-btn-sm:hover { background: #0958d9 !important; border-color: #0958d9 !important; }
 
 /* ── Table ────────────────────────────────────────────────────── */
 .coa-table-wrap {
@@ -408,8 +408,8 @@ export default defineComponent({
 .coa-status-inactive .coa-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #ef4444; }
 @keyframes coa-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
-.coa-action-btn { border-radius: 6px !important; font-size: 12px !important; border-color: #e2e8f0 !important; color: #059669 !important; font-weight: 600 !important; }
-.coa-action-btn:hover { background: #f0fdf4 !important; border-color: #10b981 !important; }
+.coa-action-btn { border-radius: 6px !important; font-size: 12px !important; border-color: #e2e8f0 !important; color: #1677ff !important; font-weight: 600 !important; }
+.coa-action-btn:hover { background: #eff6ff !important; border-color: #1677ff !important; }
 .coa-del-btn { border-radius: 6px !important; }
 
 /* ── Modal ────────────────────────────────────────────────────── */
@@ -443,6 +443,6 @@ export default defineComponent({
     display: flex; justify-content: flex-end; gap: 10px;
     border-top: 1px solid #f1f5f9; padding-top: 16px;
 }
-.coa-save-btn { background: #059669 !important; border-color: #059669 !important; border-radius: 8px !important; font-weight: 700 !important; padding: 0 24px !important; }
-.coa-save-btn:hover { background: #047857 !important; border-color: #047857 !important; }
+.coa-save-btn { background: #1677ff !important; border-color: #1677ff !important; border-radius: 8px !important; font-weight: 700 !important; padding: 0 24px !important; }
+.coa-save-btn:hover { background: #0958d9 !important; border-color: #0958d9 !important; }
 </style>
