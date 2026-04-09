@@ -312,16 +312,17 @@ export default defineComponent({
 <style lang="less">
 /* ── Hero ─────────────────────────────────────────────────────── */
 .coa-hero {
-    background: linear-gradient(135deg, #064e3b 0%, #065f46 40%, #047857 100%);
+    background: #fff;
     padding: 24px 32px 20px;
     margin-bottom: 0;
     position: relative;
     overflow: hidden;
+    border-bottom: 1px solid #e2e8f0;
 }
 .coa-hero::before {
     content: '';
     position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 70% 50%, rgba(52,211,153,.15) 0%, transparent 60%);
+    background: radial-gradient(ellipse at 70% 50%, rgba(16,185,129,.06) 0%, transparent 60%);
     pointer-events: none;
 }
 .coa-hero-inner {
@@ -331,23 +332,25 @@ export default defineComponent({
 .coa-hero-left { display: flex; align-items: center; gap: 16px; }
 .coa-hero-icon {
     width: 52px; height: 52px; border-radius: 16px;
-    background: rgba(255,255,255,.15); backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,.25);
+    background: linear-gradient(135deg, #059669, #047857);
+    border: 1px solid rgba(5,150,105,.2);
     display: flex; align-items: center; justify-content: center;
     font-size: 24px; color: #fff;
+    box-shadow: 0 4px 12px rgba(5,150,105,.25);
 }
-.coa-hero-title { font-size: 22px; font-weight: 800; color: #fff; line-height: 1.2; }
-.coa-hero-sub { font-size: 13px; color: rgba(255,255,255,.7); margin-top: 2px; }
+.coa-hero-title { font-size: 22px; font-weight: 800; color: #1e293b; line-height: 1.2; }
+.coa-hero-sub { font-size: 13px; color: #64748b; margin-top: 2px; }
 
 /* KPI Chips */
 .coa-kpi-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .coa-chip {
     display: flex; flex-direction: column; align-items: center;
     padding: 6px 14px; border-radius: 12px; border: 1px solid;
-    backdrop-filter: blur(4px); min-width: 68px; cursor: default;
+    min-width: 68px; cursor: default;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
 }
 .coa-chip-val { font-size: 18px; font-weight: 800; line-height: 1.1; }
-.coa-chip-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; opacity: .85; margin-top: 1px; }
+.coa-chip-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; opacity: .8; margin-top: 1px; }
 
 /* ── Filter Bar ───────────────────────────────────────────────── */
 .coa-filter-bar {
