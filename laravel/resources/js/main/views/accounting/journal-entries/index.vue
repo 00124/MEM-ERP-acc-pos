@@ -625,17 +625,18 @@ export default defineComponent({
 
 /* ── Expanded row ── */
 .je-exp-strip {
-    background: linear-gradient(90deg, #272B41, #1677ff);
-    color: #fff; padding: 12px 22px;
+    background: #fff;
+    border-bottom: 1px solid #E3E6EF;
+    padding: 12px 22px;
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     font-family: 'Inter', sans-serif;
 }
-.je-exp-num   { font-size: 13px; font-weight: 700; background: rgba(255,255,255,.15); padding: 4px 12px; border-radius: 6px; display: flex; align-items: center; gap: 6px; }
+.je-exp-num   { font-size: 13px; font-weight: 700; background: #e6f4ff; color: #1677ff; padding: 4px 12px; border-radius: 6px; display: flex; align-items: center; gap: 6px; }
 .je-exp-pills { display: flex; gap: 8px; flex-wrap: wrap; }
-.je-exp-pill  { font-size: 11px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 4px; padding: 2px 10px; display: flex; align-items: center; gap: 4px; }
-.je-pill-type   { background: rgba(22,119,255,.25); border-color: rgba(22,119,255,.4); }
-.je-pill-status { background: rgba(32,201,151,.25); border-color: rgba(32,201,151,.4); font-weight: 700; }
-.je-exp-desc  { margin-left: auto; font-style: italic; font-size: 12px; opacity: .7; }
+.je-exp-pill  { font-size: 11px; background: #F4F5F7; border: 1px solid #E3E6EF; border-radius: 4px; padding: 2px 10px; display: flex; align-items: center; gap: 4px; color: #5A5F7D; }
+.je-pill-type   { background: #e6f4ff; border-color: #91caff; color: #1677ff; }
+.je-pill-status { background: #d6fff4; border-color: #87e8ca; color: #0CAB7C; font-weight: 700; }
+.je-exp-desc  { margin-left: auto; font-style: italic; font-size: 12px; color: #ADB4D2; }
 
 .je-exp-body  { display: flex; }
 .je-exp-pane  { flex: 1; padding: 18px 22px; }
