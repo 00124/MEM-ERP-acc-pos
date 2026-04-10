@@ -886,30 +886,37 @@ class AccountingController extends ApiBaseController
         $asOf      = $request->as_of ?? now()->toDateString();
         $year      = $request->year  ?? now()->year;
 
-        // ── Current snapshot ─────────────────────────────────────────────
+        // ── Current snapshot (only entries posted on or before as_of) ────
         $rows = DB::select("
             SELECT coa.id, coa.account_code, coa.account_name, coa.account_type,
-                   COALESCE(SUM(jel.debit - jel.credit), 0) AS balance
+                   COALESCE(bal.balance, 0) AS balance
             FROM chart_of_accounts coa
-            LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
-            LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
-                AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+            LEFT JOIN (
+                SELECT jel.account_id, SUM(jel.debit - jel.credit) AS balance
+                FROM journal_entry_lines jel
+                INNER JOIN journal_entries je ON je.id = jel.journal_entry_id
+                    AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+                GROUP BY jel.account_id
+            ) bal ON bal.account_id = coa.id
             WHERE coa.company_id = ? AND coa.account_type IN ('Asset','Liability','Equity')
                   AND coa.parent_id IS NOT NULL
-            GROUP BY coa.id ORDER BY coa.account_type, coa.account_code
+            ORDER BY coa.account_type, coa.account_code
         ", [$asOf, $companyId, $companyId]);
 
-        // ── P&L for ratio computation ─────────────────────────────────────
+        // ── P&L for ratio computation (only entries in the given year) ───
         $plRows = DB::select("
             SELECT coa.account_type, coa.account_name,
-                   COALESCE(SUM(jel.credit - jel.debit), 0) AS net
+                   COALESCE(bal.net, 0) AS net
             FROM chart_of_accounts coa
-            LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
-            LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
-                AND YEAR(je.entry_date) = ? AND je.status = 'posted' AND je.company_id = ?
+            LEFT JOIN (
+                SELECT jel.account_id, SUM(jel.credit - jel.debit) AS net
+                FROM journal_entry_lines jel
+                INNER JOIN journal_entries je ON je.id = jel.journal_entry_id
+                    AND YEAR(je.entry_date) = ? AND je.status = 'posted' AND je.company_id = ?
+                GROUP BY jel.account_id
+            ) bal ON bal.account_id = coa.id
             WHERE coa.company_id = ? AND coa.account_type IN ('Income','COGS')
                   AND coa.parent_id IS NOT NULL
-            GROUP BY coa.id
         ", [$year, $companyId, $companyId]);
 
         $revenue = collect($plRows)->where('account_type', 'Income')->sum('net');
@@ -965,25 +972,31 @@ class AccountingController extends ApiBaseController
             $ye = "$y-12-31";
             $yr = DB::select("
                 SELECT coa.account_name, coa.account_type,
-                       COALESCE(SUM(jel.debit - jel.credit), 0) AS balance
+                       COALESCE(bal.balance, 0) AS balance
                 FROM chart_of_accounts coa
-                LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
-                LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
-                    AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+                LEFT JOIN (
+                    SELECT jel.account_id, SUM(jel.debit - jel.credit) AS balance
+                    FROM journal_entry_lines jel
+                    INNER JOIN journal_entries je ON je.id = jel.journal_entry_id
+                        AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+                    GROUP BY jel.account_id
+                ) bal ON bal.account_id = coa.id
                 WHERE coa.company_id = ? AND coa.account_type IN ('Asset','Liability')
                       AND coa.parent_id IS NOT NULL
-                GROUP BY coa.id
             ", [$ye, $companyId, $companyId]);
 
             $ypl = DB::select("
-                SELECT coa.account_type, COALESCE(SUM(jel.credit - jel.debit), 0) AS net
+                SELECT coa.account_type, COALESCE(bal.net, 0) AS net
                 FROM chart_of_accounts coa
-                LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
-                LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
-                    AND YEAR(je.entry_date) = ? AND je.status = 'posted' AND je.company_id = ?
+                LEFT JOIN (
+                    SELECT jel.account_id, SUM(jel.credit - jel.debit) AS net
+                    FROM journal_entry_lines jel
+                    INNER JOIN journal_entries je ON je.id = jel.journal_entry_id
+                        AND YEAR(je.entry_date) = ? AND je.status = 'posted' AND je.company_id = ?
+                    GROUP BY jel.account_id
+                ) bal ON bal.account_id = coa.id
                 WHERE coa.company_id = ? AND coa.account_type IN ('Income','COGS')
                       AND coa.parent_id IS NOT NULL
-                GROUP BY coa.id
             ", [$y, $companyId, $companyId]);
 
             $yRev  = collect($ypl)->where('account_type', 'Income')->sum('net');
@@ -1004,14 +1017,17 @@ class AccountingController extends ApiBaseController
             $ye  = "$y-12-31";
             $ytR = DB::select("
                 SELECT coa.account_name, coa.account_type,
-                       COALESCE(SUM(jel.debit - jel.credit), 0) AS balance
+                       COALESCE(bal.balance, 0) AS balance
                 FROM chart_of_accounts coa
-                LEFT JOIN journal_entry_lines jel ON jel.account_id = coa.id
-                LEFT JOIN journal_entries je ON je.id = jel.journal_entry_id
-                    AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+                LEFT JOIN (
+                    SELECT jel.account_id, SUM(jel.debit - jel.credit) AS balance
+                    FROM journal_entry_lines jel
+                    INNER JOIN journal_entries je ON je.id = jel.journal_entry_id
+                        AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+                    GROUP BY jel.account_id
+                ) bal ON bal.account_id = coa.id
                 WHERE coa.company_id = ? AND coa.account_type IN ('Asset','Liability','Equity')
                       AND coa.parent_id IS NOT NULL
-                GROUP BY coa.id
             ", [$ye, $companyId, $companyId]);
 
             $ytA = collect($ytR)->where('account_type', 'Asset');

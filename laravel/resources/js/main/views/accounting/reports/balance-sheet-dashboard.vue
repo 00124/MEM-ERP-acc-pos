@@ -232,7 +232,10 @@
 
             <!-- ── Row 3: Yearly Financial Statement ──────────────────────── -->
             <div class="bsd-card bsd-yearly-card">
-                <div class="bsd-section-title">Overall Financial Statement — 5 Years</div>
+                <div class="bsd-section-title">
+                    <span>Overall Financial Statement — 5 Years</span>
+                    <span class="bsd-yt-note">Values are cumulative year-end balances</span>
+                </div>
                 <div class="bsd-yearly-wrap">
                     <table class="bsd-ytbl">
                         <thead>
@@ -249,16 +252,22 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="row in yearlyTable" :key="row.year">
-                                <td class="bsd-yt-year">{{ row.year }}</td>
-                                <td>PKR {{ fmtNum(row.cash) }}</td>
-                                <td>PKR {{ fmtNum(row.accounts_receivable) }}</td>
-                                <td :class="row.inventory < 0 ? 'amt-neg' : ''">PKR {{ fmtNum(row.inventory) }}</td>
-                                <td>PKR {{ fmtNum(row.current_assets) }}</td>
-                                <td>PKR {{ fmtNum(row.property_equipment) }}</td>
-                                <td>PKR {{ fmtNum(row.accounts_payable) }}</td>
-                                <td>PKR {{ fmtNum(row.current_liabilities) }}</td>
-                                <td>PKR {{ fmtNum(row.equity_capital) }}</td>
+                            <tr v-for="row in yearlyTable" :key="row.year"
+                                :class="isYearEmpty(row) ? 'bsd-row-empty' : ''">
+                                <td class="bsd-yt-year">
+                                    {{ row.year }}
+                                    <span v-if="isYearEmpty(row)" class="bsd-yt-no-data">no data</span>
+                                </td>
+                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.cash) }}</td>
+                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.accounts_receivable) }}</td>
+                                <td :class="row.inventory < 0 ? 'amt-neg' : ''">
+                                    {{ isYearEmpty(row) ? '—' : (row.inventory < 0 ? '−' : '') + 'PKR ' + fmtNum(Math.abs(row.inventory)) }}
+                                </td>
+                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.current_assets) }}</td>
+                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.property_equipment) }}</td>
+                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.accounts_payable) }}</td>
+                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.current_liabilities) }}</td>
+                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.equity_capital) }}</td>
                             </tr>
                             <tr v-if="!yearlyTable.length">
                                 <td colspan="9" style="text-align:center;color:#ADB4D2;padding:20px">No data</td>
@@ -373,6 +382,11 @@ export default defineComponent({
         };
 
         /* ── Helpers ───────────────────────────────────────────────────── */
+        const isYearEmpty = (row) =>
+            !row.cash && !row.accounts_receivable && !row.inventory &&
+            !row.current_assets && !row.property_equipment &&
+            !row.accounts_payable && !row.current_liabilities && !row.equity_capital;
+
         const fmtNum = (v) => {
             const n = Number(v || 0);
             if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
@@ -406,7 +420,7 @@ export default defineComponent({
             activeAssets, activeLiabs, activeEquity,
             isBalanced, impliedEquity, cashPct,
             assetComposition, cashChartData, cashBarOpts,
-            fmtNum, load, print,
+            fmtNum, isYearEmpty, load, print,
         };
     },
 });
@@ -521,6 +535,9 @@ export default defineComponent({
 .bsd-ytbl td { padding: 8px 12px; text-align: right; border-bottom: 1px solid #F1F2F6; color: #272B41; }
 .bsd-ytbl tbody tr:hover td { background: #F8F9FB; }
 .bsd-yt-year { text-align: left; font-weight: 700; color: #1677ff; }
+.bsd-yt-note { font-size: 11px; color: #ADB4D2; font-weight: 400; font-style: italic; }
+.bsd-row-empty td { color: #ADB4D2 !important; font-style: italic; background: #FAFAFA; }
+.bsd-yt-no-data { font-size: 10px; font-weight: 400; color: #ADB4D2; margin-left: 6px; background: #F1F2F6; padding: 1px 6px; border-radius: 4px; font-style: italic; }
 
 /* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
