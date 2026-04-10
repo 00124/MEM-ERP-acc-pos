@@ -230,15 +230,34 @@
                 </div>
             </div>
 
-            <!-- ── Row 3: Yearly Financial Statement ──────────────────────── -->
+            <!-- ── Row 3: Financial Statement Table ───────────────────────── -->
             <div class="bsd-card bsd-yearly-card">
-                <div class="bsd-section-title">Overall Financial Statement — 5 Years</div>
-                <div class="bsd-yt-note" style="margin:-8px 0 14px">Values are cumulative year-end balances</div>
+                <div class="bsd-fs-header">
+                    <div>
+                        <div class="bsd-section-title" style="margin-bottom:2px">Overall Financial Statement</div>
+                        <div class="bsd-yt-note">
+                            {{ tableView === 'yearly'
+                                ? 'Cumulative year-end balances — last 5 years'
+                                : 'Cumulative month-end balances — last 12 months' }}
+                        </div>
+                    </div>
+                    <div class="bsd-view-toggle">
+                        <button class="bsd-toggle-btn" :class="tableView === 'yearly' ? 'active' : ''"
+                            @click="tableView = 'yearly'">
+                            <CalendarOutlined /> Yearly
+                        </button>
+                        <button class="bsd-toggle-btn" :class="tableView === 'monthly' ? 'active' : ''"
+                            @click="tableView = 'monthly'">
+                            <ScheduleOutlined /> Monthly
+                        </button>
+                    </div>
+                </div>
+
                 <div class="bsd-yearly-wrap">
                     <table class="bsd-ytbl">
                         <thead>
                             <tr>
-                                <th>Year</th>
+                                <th>{{ tableView === 'yearly' ? 'Year' : 'Month' }}</th>
                                 <th>Cash</th>
                                 <th>Accounts Receivable</th>
                                 <th>Inventory (Net)</th>
@@ -249,26 +268,50 @@
                                 <th>Equity Capital</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <!-- ── Yearly rows ── -->
+                        <tbody v-if="tableView === 'yearly'">
                             <tr v-for="row in yearlyTable" :key="row.year"
-                                :class="isYearEmpty(row) ? 'bsd-row-empty' : ''">
+                                :class="isRowEmpty(row) ? 'bsd-row-empty' : ''">
                                 <td class="bsd-yt-year">
                                     {{ row.year }}
-                                    <span v-if="isYearEmpty(row)" class="bsd-yt-no-data">no data</span>
+                                    <span v-if="isRowEmpty(row)" class="bsd-yt-no-data">no data</span>
                                 </td>
-                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.cash) }}</td>
-                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.accounts_receivable) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.cash) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.accounts_receivable) }}</td>
                                 <td :class="row.inventory < 0 ? 'amt-neg' : ''">
-                                    {{ isYearEmpty(row) ? '—' : (row.inventory < 0 ? '−' : '') + 'PKR ' + fmtNum(Math.abs(row.inventory)) }}
+                                    {{ isRowEmpty(row) ? '—' : (row.inventory < 0 ? '−' : '') + 'PKR ' + fmtNum(Math.abs(row.inventory)) }}
                                 </td>
-                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.current_assets) }}</td>
-                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.property_equipment) }}</td>
-                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.accounts_payable) }}</td>
-                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.current_liabilities) }}</td>
-                                <td>{{ isYearEmpty(row) ? '—' : 'PKR ' + fmtNum(row.equity_capital) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.current_assets) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.property_equipment) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.accounts_payable) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.current_liabilities) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.equity_capital) }}</td>
                             </tr>
                             <tr v-if="!yearlyTable.length">
-                                <td colspan="9" style="text-align:center;color:#ADB4D2;padding:20px">No data</td>
+                                <td colspan="9" class="bsd-empty-msg">No data</td>
+                            </tr>
+                        </tbody>
+                        <!-- ── Monthly rows ── -->
+                        <tbody v-else>
+                            <tr v-for="row in monthlyTable" :key="row.period"
+                                :class="isRowEmpty(row) ? 'bsd-row-empty' : ''">
+                                <td class="bsd-yt-year">
+                                    {{ row.period }}
+                                    <span v-if="isRowEmpty(row)" class="bsd-yt-no-data">no data</span>
+                                </td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.cash) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.accounts_receivable) }}</td>
+                                <td :class="row.inventory < 0 ? 'amt-neg' : ''">
+                                    {{ isRowEmpty(row) ? '—' : (row.inventory < 0 ? '−' : '') + 'PKR ' + fmtNum(Math.abs(row.inventory)) }}
+                                </td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.current_assets) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.property_equipment) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.accounts_payable) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.current_liabilities) }}</td>
+                                <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.equity_capital) }}</td>
+                            </tr>
+                            <tr v-if="!monthlyTable.length">
+                                <td colspan="9" class="bsd-empty-msg">No data</td>
                             </tr>
                         </tbody>
                     </table>
@@ -303,6 +346,7 @@ if (!Chart.registry.plugins.get('whiteBackground')) {
 import {
     BarChartOutlined, FileTextOutlined, PrinterOutlined, ReloadOutlined,
     BankOutlined, WalletOutlined, TeamOutlined, AlertOutlined,
+    CalendarOutlined, ScheduleOutlined,
 } from '@ant-design/icons-vue';
 
 export default defineComponent({
@@ -310,6 +354,7 @@ export default defineComponent({
         AdminPageHeader, BarChart,
         BarChartOutlined, FileTextOutlined, PrinterOutlined, ReloadOutlined,
         BankOutlined, WalletOutlined, TeamOutlined, AlertOutlined,
+        CalendarOutlined, ScheduleOutlined,
     },
     setup() {
         const axiosAdmin = window.axiosAdmin;
@@ -322,11 +367,14 @@ export default defineComponent({
 
         const filters = ref({ year: currentYear, as_of: now });
 
+        const tableView = ref('yearly');
+
         /* ── Computed from API ─────────────────────────────────────────── */
-        const snap        = computed(() => data.value?.snapshot   ?? {});
-        const r           = computed(() => data.value?.ratios     ?? {});
-        const charts      = computed(() => data.value?.charts     ?? {});
-        const yearlyTable = computed(() => data.value?.yearly_table ?? []);
+        const snap         = computed(() => data.value?.snapshot    ?? {});
+        const r            = computed(() => data.value?.ratios      ?? {});
+        const charts       = computed(() => data.value?.charts      ?? {});
+        const yearlyTable  = computed(() => data.value?.yearly_table  ?? []);
+        const monthlyTable = computed(() => data.value?.monthly_table ?? []);
 
         /* Only accounts with non-zero balances */
         const allRows    = computed(() => snap.value.data || []);
@@ -400,7 +448,7 @@ export default defineComponent({
         };
 
         /* ── Helpers ───────────────────────────────────────────────────── */
-        const isYearEmpty = (row) =>
+        const isRowEmpty = (row) =>
             !row.cash && !row.accounts_receivable && !row.inventory &&
             !row.current_assets && !row.property_equipment &&
             !row.accounts_payable && !row.current_liabilities && !row.equity_capital;
@@ -438,7 +486,7 @@ export default defineComponent({
             activeAssets, activeLiabs, activeEquity,
             isBalanced, impliedEquity, cashPct,
             assetComposition, cashChartData, cashBarOpts,
-            fmtNum, isYearEmpty, load, print,
+            fmtNum, isRowEmpty, tableView, monthlyTable, load, print,
         };
     },
 });
@@ -545,9 +593,15 @@ export default defineComponent({
 .bsd-chart-card { padding: 16px 18px; background: #fff; }
 .bsd-chart-card canvas { background: #fff !important; }
 
-/* ── Yearly Table ────────────────────────────────────────────────── */
+/* ── Financial Statement Table ───────────────────────────────────── */
 .bsd-yearly-card { padding: 18px 20px; }
+.bsd-fs-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+.bsd-view-toggle { display: flex; gap: 4px; background: #F4F5F7; border-radius: 8px; padding: 3px; flex-shrink: 0; }
+.bsd-toggle-btn { display: flex; align-items: center; gap: 5px; padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #ADB4D2; transition: all .2s; font-family: inherit; }
+.bsd-toggle-btn:hover { color: #5A5F7D; }
+.bsd-toggle-btn.active { background: #fff; color: #1677ff; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
 .bsd-yearly-wrap { overflow-x: auto; }
+.bsd-empty-msg { text-align: center; color: #ADB4D2; padding: 20px; }
 .bsd-ytbl { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
 .bsd-ytbl th { background: #F8F9FB; color: #5A5F7D; font-weight: 700; font-size: 11px; padding: 9px 12px; text-align: right; border-bottom: 2px solid #E3E6EF; }
 .bsd-ytbl th:first-child { text-align: left; }

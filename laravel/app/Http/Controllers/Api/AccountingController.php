@@ -1048,6 +1048,45 @@ class AccountingController extends ApiBaseController
             ];
         }
 
+        // ── Monthly balance sheet table (last 12 months) ──────────────────
+        $monthlyTable = [];
+        for ($i = 11; $i >= 0; $i--) {
+            $monthEnd   = now()->subMonths($i)->endOfMonth()->toDateString();
+            $monthLabel = now()->subMonths($i)->format('M Y');
+
+            $mtR = DB::select("
+                SELECT coa.account_name, coa.account_type,
+                       COALESCE(bal.balance, 0) AS balance
+                FROM chart_of_accounts coa
+                LEFT JOIN (
+                    SELECT jel.account_id, SUM(jel.debit - jel.credit) AS balance
+                    FROM journal_entry_lines jel
+                    INNER JOIN journal_entries je ON je.id = jel.journal_entry_id
+                        AND je.entry_date <= ? AND je.status = 'posted' AND je.company_id = ?
+                    GROUP BY jel.account_id
+                ) bal ON bal.account_id = coa.id
+                WHERE coa.company_id = ? AND coa.account_type IN ('Asset','Liability','Equity')
+                      AND coa.parent_id IS NOT NULL
+            ", [$monthEnd, $companyId, $companyId]);
+
+            $mtA = collect($mtR)->where('account_type', 'Asset');
+            $mtL = collect($mtR)->where('account_type', 'Liability');
+            $mtE = collect($mtR)->where('account_type', 'Equity');
+
+            $monthlyTable[] = [
+                'period'              => $monthLabel,
+                'period_end'          => $monthEnd,
+                'cash'                => round($mtA->filter(fn($r) => stripos($r->account_name, 'cash') !== false)->sum('balance'), 2),
+                'accounts_receivable' => round($mtA->filter(fn($r) => stripos($r->account_name, 'receivable') !== false)->sum('balance'), 2),
+                'inventory'           => round($mtA->filter(fn($r) => stripos($r->account_name, 'inventor') !== false || stripos($r->account_name, 'stock') !== false)->sum('balance'), 2),
+                'current_assets'      => round($mtA->filter(fn($r) => stripos($r->account_name, 'cash') !== false || stripos($r->account_name, 'receivable') !== false || stripos($r->account_name, 'inventor') !== false || stripos($r->account_name, 'stock') !== false || stripos($r->account_name, 'current') !== false)->sum('balance'), 2),
+                'property_equipment'  => round($mtA->filter(fn($r) => stripos($r->account_name, 'property') !== false || stripos($r->account_name, 'equipment') !== false || stripos($r->account_name, 'fixed') !== false)->sum('balance'), 2),
+                'accounts_payable'    => round(abs($mtL->filter(fn($r) => stripos($r->account_name, 'payable') !== false)->sum('balance')), 2),
+                'current_liabilities' => round(abs($mtL->filter(fn($r) => stripos($r->account_name, 'payable') !== false || stripos($r->account_name, 'current') !== false)->sum('balance')), 2),
+                'equity_capital'      => round(abs($mtE->sum('balance')), 2),
+            ];
+        }
+
         return $this->sendResponse([
             'snapshot' => [
                 'data'                => $rows,
@@ -1082,8 +1121,9 @@ class AccountingController extends ApiBaseController
                 'ap_turnover' => $apTurnover,
                 'cash_by_year'=> $cashByYear,
             ],
-            'yearly_table' => $yearlyTable,
-            'as_of'        => $asOf,
+            'yearly_table'  => $yearlyTable,
+            'monthly_table' => $monthlyTable,
+            'as_of'         => $asOf,
         ], '');
     }
 }
