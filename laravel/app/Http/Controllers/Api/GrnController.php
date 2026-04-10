@@ -10,14 +10,16 @@ use App\Http\Requests\Api\Grn\UpdateRequest;
 use App\Http\Requests\Api\Purchase\DeleteRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Services\AccountingService;
 use App\Traits\OrderTraits;
 use Examyou\RestAPI\ApiResponse;
 use Examyou\RestAPI\Exceptions\ApiException;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class GrnController extends ApiBaseController
 {
-    use OrderTraits;
+    use OrderTraits { stored as traitStored; }
 
     protected $model = Order::class;
 
@@ -51,6 +53,26 @@ class GrnController extends ApiBaseController
                 $message = 'An error occurred while creating the GRN.';
             }
             throw new ApiException($message, $e, null, 400);
+        }
+    }
+
+    /**
+     * Hook called after a GRN is successfully stored.
+     * Auto-creates a journal entry (DR Inventory / CR Accounts Payable).
+     */
+    public function stored(Order $order)
+    {
+        $this->traitStored($order);
+
+        try {
+            $result = AccountingService::onPurchaseCreated($order);
+            if (!$result['ok']) {
+                Log::warning('[GRN] JE creation failed for ' . $order->invoice_number . ': ' . $result['message']);
+            } else {
+                Log::info('[GRN] JE auto-created for ' . $order->invoice_number . ': ' . $result['message']);
+            }
+        } catch (\Throwable $e) {
+            Log::error('[GRN] JE auto-create exception for ' . $order->invoice_number . ': ' . $e->getMessage());
         }
     }
 
