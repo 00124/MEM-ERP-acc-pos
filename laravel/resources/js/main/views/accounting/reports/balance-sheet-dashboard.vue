@@ -232,10 +232,8 @@
 
             <!-- ── Row 3: Yearly Financial Statement ──────────────────────── -->
             <div class="bsd-card bsd-yearly-card">
-                <div class="bsd-section-title">
-                    <span>Overall Financial Statement — 5 Years</span>
-                    <span class="bsd-yt-note">Values are cumulative year-end balances</span>
-                </div>
+                <div class="bsd-section-title">Overall Financial Statement — 5 Years</div>
+                <div class="bsd-yt-note" style="margin:-8px 0 14px">Values are cumulative year-end balances</div>
                 <div class="bsd-yearly-wrap">
                     <table class="bsd-ytbl">
                         <thead>
@@ -376,7 +374,13 @@ export default defineComponent({
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                y: { ticks: { font: { size: 10 }, callback: v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v } },
+                y: {
+                    ticks: {
+                        maxTicksLimit: 5,
+                        font: { size: 10 },
+                        callback: v => v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v,
+                    },
+                },
                 x: { ticks: { font: { size: 10 } } },
             },
         };
@@ -460,7 +464,7 @@ export default defineComponent({
 .bsd-kpi-red   { background: linear-gradient(135deg,#fff1f0 0%,#ffe4e1 100%); border-color: #ffccc7; color: #cf1322; }
 
 /* ── Main Row ────────────────────────────────────────────────────── */
-.bsd-main-row { display: grid; grid-template-columns: 1fr 380px; gap: 18px; }
+.bsd-main-row { display: grid; grid-template-columns: 1fr 380px; gap: 18px; align-items: start; }
 
 /* ── Balance Sheet ───────────────────────────────────────────────── */
 .bsd-bs-col { padding: 18px 20px; }
@@ -535,7 +539,7 @@ export default defineComponent({
 .bsd-ytbl td { padding: 8px 12px; text-align: right; border-bottom: 1px solid #F1F2F6; color: #272B41; }
 .bsd-ytbl tbody tr:hover td { background: #F8F9FB; }
 .bsd-yt-year { text-align: left; font-weight: 700; color: #1677ff; }
-.bsd-yt-note { font-size: 11px; color: #ADB4D2; font-weight: 400; font-style: italic; }
+.bsd-yt-note { display: block; font-size: 11px; color: #ADB4D2; font-weight: 400; font-style: italic; }
 .bsd-row-empty td { color: #ADB4D2 !important; font-style: italic; background: #FAFAFA; }
 .bsd-yt-no-data { font-size: 10px; font-weight: 400; color: #ADB4D2; margin-left: 6px; background: #F1F2F6; padding: 1px 6px; border-radius: 4px; font-style: italic; }
 
