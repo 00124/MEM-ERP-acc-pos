@@ -236,20 +236,31 @@
                     <div>
                         <div class="bsd-section-title" style="margin-bottom:2px">Overall Financial Statement</div>
                         <div class="bsd-yt-note">
-                            {{ tableView === 'yearly'
-                                ? 'Cumulative year-end balances — last 5 years'
-                                : 'Cumulative month-end balances — last 12 months' }}
+                            <template v-if="tableView === 'yearly'">
+                                {{ showHistory
+                                    ? 'Showing past 4 years + current year + next year (projection)'
+                                    : 'Showing current year & next year (projection) — cumulative balances' }}
+                            </template>
+                            <template v-else>Cumulative month-end balances — last 12 months</template>
                         </div>
                     </div>
-                    <div class="bsd-view-toggle">
-                        <button class="bsd-toggle-btn" :class="tableView === 'yearly' ? 'active' : ''"
-                            @click="tableView = 'yearly'">
-                            <CalendarOutlined /> Yearly
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        <!-- History toggle (only shown in yearly view) -->
+                        <button v-if="tableView === 'yearly'"
+                            class="bsd-toggle-btn bsd-history-btn" :class="showHistory ? 'active' : ''"
+                            @click="toggleHistory">
+                            <HistoryOutlined /> {{ showHistory ? 'Hide History' : 'Show History' }}
                         </button>
-                        <button class="bsd-toggle-btn" :class="tableView === 'monthly' ? 'active' : ''"
-                            @click="tableView = 'monthly'">
-                            <ScheduleOutlined /> Monthly
-                        </button>
+                        <div class="bsd-view-toggle">
+                            <button class="bsd-toggle-btn" :class="tableView === 'yearly' ? 'active' : ''"
+                                @click="tableView = 'yearly'">
+                                <CalendarOutlined /> Yearly
+                            </button>
+                            <button class="bsd-toggle-btn" :class="tableView === 'monthly' ? 'active' : ''"
+                                @click="tableView = 'monthly'">
+                                <ScheduleOutlined /> Monthly
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -271,10 +282,11 @@
                         <!-- ── Yearly rows ── -->
                         <tbody v-if="tableView === 'yearly'">
                             <tr v-for="row in yearlyTable" :key="row.year"
-                                :class="isRowEmpty(row) ? 'bsd-row-empty' : ''">
+                                :class="[isRowEmpty(row) ? 'bsd-row-empty' : '', row.is_projection ? 'bsd-row-proj' : '']">
                                 <td class="bsd-yt-year">
                                     {{ row.year }}
-                                    <span v-if="isRowEmpty(row)" class="bsd-yt-no-data">no data</span>
+                                    <span v-if="row.is_projection" class="bsd-proj-tag">Projection</span>
+                                    <span v-else-if="isRowEmpty(row)" class="bsd-yt-no-data">no data</span>
                                 </td>
                                 <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.cash) }}</td>
                                 <td>{{ isRowEmpty(row) ? '—' : 'PKR ' + fmtNum(row.accounts_receivable) }}</td>
@@ -346,7 +358,7 @@ if (!Chart.registry.plugins.get('whiteBackground')) {
 import {
     BarChartOutlined, FileTextOutlined, PrinterOutlined, ReloadOutlined,
     BankOutlined, WalletOutlined, TeamOutlined, AlertOutlined,
-    CalendarOutlined, ScheduleOutlined,
+    CalendarOutlined, ScheduleOutlined, HistoryOutlined,
 } from '@ant-design/icons-vue';
 
 export default defineComponent({
@@ -354,7 +366,7 @@ export default defineComponent({
         AdminPageHeader, BarChart,
         BarChartOutlined, FileTextOutlined, PrinterOutlined, ReloadOutlined,
         BankOutlined, WalletOutlined, TeamOutlined, AlertOutlined,
-        CalendarOutlined, ScheduleOutlined,
+        CalendarOutlined, ScheduleOutlined, HistoryOutlined,
     },
     setup() {
         const axiosAdmin = window.axiosAdmin;
@@ -367,7 +379,8 @@ export default defineComponent({
 
         const filters = ref({ year: currentYear, as_of: now });
 
-        const tableView = ref('yearly');
+        const tableView   = ref('yearly');
+        const showHistory = ref(false);
 
         /* ── Computed from API ─────────────────────────────────────────── */
         const snap         = computed(() => data.value?.snapshot    ?? {});
@@ -465,8 +478,9 @@ export default defineComponent({
             try {
                 const res = await axiosAdmin.get('accounting/reports/balance-sheet-dashboard', {
                     params: {
-                        as_of: filters.value.as_of?.format?.('YYYY-MM-DD') ?? filters.value.as_of,
-                        year:  filters.value.year,
+                        as_of:        filters.value.as_of?.format?.('YYYY-MM-DD') ?? filters.value.as_of,
+                        year:         filters.value.year,
+                        show_history: showHistory.value ? 'true' : 'false',
                     },
                 });
                 data.value = res.data;
@@ -477,6 +491,7 @@ export default defineComponent({
             }
         };
 
+        const toggleHistory = () => { showHistory.value = !showHistory.value; load(); };
         const print = () => window.print();
         onMounted(load);
 
@@ -486,7 +501,8 @@ export default defineComponent({
             activeAssets, activeLiabs, activeEquity,
             isBalanced, impliedEquity, cashPct,
             assetComposition, cashChartData, cashBarOpts,
-            fmtNum, isRowEmpty, tableView, monthlyTable, load, print,
+            fmtNum, isRowEmpty, tableView, monthlyTable,
+            showHistory, toggleHistory, load, print,
         };
     },
 });
@@ -600,6 +616,10 @@ export default defineComponent({
 .bsd-toggle-btn { display: flex; align-items: center; gap: 5px; padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #ADB4D2; transition: all .2s; font-family: inherit; }
 .bsd-toggle-btn:hover { color: #5A5F7D; }
 .bsd-toggle-btn.active { background: #fff; color: #1677ff; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.bsd-history-btn { background: #F4F5F7; border: 1px dashed #d9d9d9; color: #5A5F7D; margin-right: 4px; }
+.bsd-history-btn.active { background: #fff7e6; color: #d46b08; border-color: #ffd591; box-shadow: none; }
+.bsd-row-proj td { background: #fffbe6 !important; font-style: italic; }
+.bsd-proj-tag { font-size: 10px; font-weight: 700; background: #fff7e6; color: #d46b08; border: 1px solid #ffd591; padding: 1px 7px; border-radius: 20px; margin-left: 6px; font-style: normal; white-space: nowrap; }
 .bsd-yearly-wrap { overflow-x: auto; }
 .bsd-empty-msg { text-align: center; color: #ADB4D2; padding: 20px; }
 .bsd-ytbl { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }

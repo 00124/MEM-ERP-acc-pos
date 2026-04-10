@@ -1011,10 +1011,19 @@ class AccountingController extends ApiBaseController
             $cashByYear[]  = round($yCash, 2);
         }
 
-        // ── Yearly balance sheet table (last 5 years) ─────────────────────
+        // ── Yearly balance sheet table ─────────────────────────────────────
+        // Default: current year + next year (projection). Set show_history=true for past 4 years.
+        $showHistory  = filter_var($request->show_history ?? false, FILTER_VALIDATE_BOOLEAN);
+        $currentYear  = now()->year;
+        $startYear    = $showHistory ? $currentYear - 4 : $currentYear;
+        $endYear      = $currentYear + 1;   // always include next year as projection
+
         $yearlyTable = [];
-        for ($y = now()->year - 4; $y <= now()->year; $y++) {
-            $ye  = "$y-12-31";
+        for ($y = $startYear; $y <= $endYear; $y++) {
+            $isProjection = $y > $currentYear;
+            // For a future year use today as the ceiling (will return same as current)
+            $ye = $isProjection ? now()->toDateString() : "$y-12-31";
+
             $ytR = DB::select("
                 SELECT coa.account_name, coa.account_type,
                        COALESCE(bal.balance, 0) AS balance
@@ -1036,6 +1045,7 @@ class AccountingController extends ApiBaseController
 
             $yearlyTable[] = [
                 'year'                => $y,
+                'is_projection'       => $isProjection,
                 'cash'                => round($ytA->filter(fn($r) => stripos($r->account_name, 'cash') !== false)->sum('balance'), 2),
                 'accounts_receivable' => round($ytA->filter(fn($r) => stripos($r->account_name, 'receivable') !== false)->sum('balance'), 2),
                 'inventory'           => round($ytA->filter(fn($r) => stripos($r->account_name, 'inventor') !== false || stripos($r->account_name, 'stock') !== false)->sum('balance'), 2),
