@@ -223,7 +223,7 @@
                     <!-- Cash Trend -->
                     <div class="bsd-card bsd-chart-card">
                         <div class="bsd-section-title">Cash Position — Year by Year</div>
-                        <div style="height:180px">
+                        <div style="height:180px; background:#fff; border-radius:4px; overflow:hidden;">
                             <BarChart v-if="cashChartData" :chart-data="cashChartData" :options="cashBarOpts" />
                         </div>
                     </div>
@@ -286,6 +286,20 @@ import AdminPageHeader from '../../../../common/layouts/AdminPageHeader.vue';
 import { BarChart } from 'vue-chart-3';
 import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
+
+// Ensure charts always render on a white canvas (Chart.js 3 canvas is transparent by default)
+if (!Chart.registry.plugins.get('whiteBackground')) {
+    Chart.register({
+        id: 'whiteBackground',
+        beforeDraw(chart) {
+            const ctx = chart.canvas.getContext('2d');
+            ctx.save();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, chart.canvas.width, chart.canvas.height);
+            ctx.restore();
+        },
+    });
+}
 import {
     BarChartOutlined, FileTextOutlined, PrinterOutlined, ReloadOutlined,
     BankOutlined, WalletOutlined, TeamOutlined, AlertOutlined,
@@ -528,7 +542,8 @@ export default defineComponent({
 .val-neutral { color: #1677ff; }
 
 /* Cash chart */
-.bsd-chart-card { padding: 16px 18px; }
+.bsd-chart-card { padding: 16px 18px; background: #fff; }
+.bsd-chart-card canvas { background: #fff !important; }
 
 /* ── Yearly Table ────────────────────────────────────────────────── */
 .bsd-yearly-card { padding: 18px 20px; }
