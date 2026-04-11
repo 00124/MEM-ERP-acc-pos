@@ -1,0 +1,132 @@
+The Moving Average Costing (MAC) changes were supposedly applied, but nothing is visible or working in the system.
+
+❗ Problem Summary
+No UI changes (Net Cost column not showing)
+No stock updates happening
+No average cost updates in DB
+Reports still unchanged
+System behaves exactly like before update
+🚨 TASK: DO FULL END-TO-END DEBUG + FIX (DO NOT ASSUME ANYTHING WORKS)
+
+You must verify and fix ALL layers:
+
+1. FRONTEND ISSUE (HIGH PRIORITY)
+
+Check purchase form UI:
+
+“Net Cost” column MUST be visible in purchase items table
+Editable input must exist and bind to API field net_cost_rate
+IF NOT VISIBLE:
+
+👉 frontend bundle NOT updated or wrong component edited
+
+Fix:
+
+rebuild frontend
+ensure latest build is loaded
+clear browser cache issues
+2. API FLOW CHECK
+
+Confirm purchase API actually receives:
+
+net_cost_rate
+invoice_rate
+purchase_qty
+
+If missing:
+👉 frontend not sending updated payload
+
+3. BACKEND LOGIC VERIFICATION
+
+Ensure this is actually executing:
+
+Stock update in product_details
+MAC calculation:
+current_avg_cost_invoice
+current_avg_cost_net
+MUST VERIFY:
+
+Add logs:
+
+Log::info('MAC Purchase Triggered');
+
+If log not found:
+👉 controller not hit or wrong route used
+
+4. DATABASE CHECK (CRITICAL)
+
+Run verification:
+
+SELECT current_stock, current_avg_cost_invoice, current_avg_cost_net 
+FROM product_details;
+
+If values unchanged:
+👉 logic not executing OR transaction rollback issue
+
+5. SALE FLOW CHECK
+
+Ensure order_items table stores:
+
+cost_invoice
+cost_net
+
+If NULL:
+👉 sale snapshot logic not working
+
+6. MOST LIKELY ROOT CAUSE
+
+One of these is 100% the issue:
+
+Old frontend build still running
+Wrong API endpoint in use
+Controller not executed
+Transaction rollback happening
+Cache not cleared
+Wrong DB table being updated
+7. CLEAN FIX STEPS (DO ALL)
+
+Run:
+
+php artisan optimize:clear
+php artisan cache:clear
+php artisan config:clear
+php artisan view:clear
+npm install
+npm run build
+
+Restart server after changes.
+
+8. FINAL EXPECTED RESULT
+
+After fix:
+
+Purchase:
+
+✔ Net Cost visible in UI
+✔ Stock updates correctly
+✔ MAC updates instantly
+
+Sale:
+
+✔ cost_invoice & cost_net saved
+✔ profit reports correct
+
+Reports:
+
+✔ use stored snapshot values only
+
+🚨 IMPORTANT
+
+Do NOT respond “completed” unless you have verified:
+
+frontend UI change is visible
+DB values actually change after purchase
+logs confirm execution
+API payload contains new fields
+
+If issue persists, print:
+
+route used
+controller executed
+request payload
+DB update query result

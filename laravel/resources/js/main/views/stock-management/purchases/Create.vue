@@ -971,8 +971,8 @@ export default {
         const { orderItemColumns } = fields();
         const tableItemColumns = computed(() =>
             orderPageObject.value.type === 'purchases'
-                ? orderItemColumns.value
-                : orderItemColumns.value.filter(c => c.dataIndex !== 'net_cost_rate')
+                ? orderItemColumns
+                : orderItemColumns.filter(c => c.dataIndex !== 'net_cost_rate')
         );
         const {
             state,
