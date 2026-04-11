@@ -34,7 +34,7 @@ export default [
                 meta: {
                     requireAuth: true,
                     menuParent: "warranty_damage",
-                    menuKey: "warranty_damage",
+                    menuKey: (route) => "warranty_damage",
                 },
             },
             {
@@ -45,7 +45,7 @@ export default [
                 meta: {
                     requireAuth: true,
                     menuParent: "warranty_damage",
-                    menuKey: "warranty_damage",
+                    menuKey: (route) => "warranty_damage",
                 },
             },
             // Purchases
