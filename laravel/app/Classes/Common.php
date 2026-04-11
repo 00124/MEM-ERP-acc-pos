@@ -524,6 +524,113 @@ class Common
         $productDetails->save();
     }
 
+    /**
+     * Incremental Moving Average Cost update for a PURCHASE (new order only).
+     *
+     * $items = [['qty' => float, 'invoice_rate' => float, 'net_cost_rate' => float], ...]
+     * Call this BEFORE applyStockDelta so current_stock still holds the pre-purchase value.
+     */
+    public static function updateMAC($warehouseId, $productId, array $items)
+    {
+        if (empty($items)) return;
+
+        $productDetails = ProductDetails::withoutGlobalScope('current_warehouse')
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->first();
+
+        if (!$productDetails) return;
+
+        $oldQty        = (float)($productDetails->current_stock ?? 0);
+        $oldAvgInvoice = (float)($productDetails->current_avg_cost_invoice ?: $productDetails->purchase_price ?: 0);
+        $oldAvgNet     = (float)($productDetails->current_avg_cost_net     ?: $productDetails->purchase_price ?: 0);
+
+        $totalQty          = array_sum(array_column($items, 'qty'));
+        $totalInvoiceValue = array_sum(array_map(fn($i) => $i['qty'] * $i['invoice_rate'], $items));
+        $totalNetValue     = array_sum(array_map(fn($i) => $i['qty'] * $i['net_cost_rate'], $items));
+
+        $newQty = $oldQty + $totalQty;
+        if ($newQty > 0) {
+            $newAvgInvoice = ($oldQty * $oldAvgInvoice + $totalInvoiceValue) / $newQty;
+            $newAvgNet     = ($oldQty * $oldAvgNet     + $totalNetValue)     / $newQty;
+        } else {
+            $newAvgInvoice = $totalQty > 0 ? $totalInvoiceValue / $totalQty : $oldAvgInvoice;
+            $newAvgNet     = $totalQty > 0 ? $totalNetValue     / $totalQty : $oldAvgNet;
+        }
+
+        $productDetails->current_avg_cost_invoice = round($newAvgInvoice, 6);
+        $productDetails->current_avg_cost_net     = round($newAvgNet,     6);
+        $productDetails->save();
+    }
+
+    /**
+     * Full MAC recalculation from purchase history.
+     * Use after editing/deleting a purchase order.
+     * Replays all purchase transactions in chronological order to derive correct MAC.
+     * Sales/returns only affect running qty (not MAC cost) per standard MAC method.
+     */
+    public static function recalculateMACForProduct($warehouseId, $productId)
+    {
+        $productDetails = ProductDetails::withoutGlobalScope('current_warehouse')
+            ->where('warehouse_id', $warehouseId)
+            ->where('product_id', $productId)
+            ->first();
+
+        if (!$productDetails) return;
+
+        // All stock-affecting transactions in date/id order
+        $transactions = \DB::table('order_items as oi')
+            ->join('orders as o', 'o.id', '=', 'oi.order_id')
+            ->where(function ($q) use ($warehouseId) {
+                $q->where(function ($inner) use ($warehouseId) {
+                    $inner->whereNotNull('oi.warehouse_id')->where('oi.warehouse_id', $warehouseId);
+                })->orWhere(function ($inner) use ($warehouseId) {
+                    $inner->whereNull('oi.warehouse_id')->where('o.warehouse_id', $warehouseId);
+                });
+            })
+            ->where('oi.product_id', $productId)
+            ->whereIn('o.order_type', ['purchases', 'purchase-returns', 'sales', 'sales-returns'])
+            ->orderBy('o.order_date')
+            ->orderBy('o.id')
+            ->select('oi.quantity', 'oi.single_unit_price', 'oi.net_cost_rate', 'o.order_type')
+            ->get();
+
+        $openingQty    = (float)($productDetails->opening_stock ?? 0);
+        $openingPrice  = (float)($productDetails->purchase_price ?? 0);
+
+        $runQty        = $openingQty;
+        $avgInvoice    = $openingPrice;
+        $avgNet        = $openingPrice;
+
+        foreach ($transactions as $tx) {
+            $qty         = (float)$tx->quantity;
+            $invoiceRate = (float)($tx->single_unit_price ?? 0);
+            $netRate     = (float)($tx->net_cost_rate ?? $tx->single_unit_price ?? 0);
+
+            if ($tx->order_type === 'purchases') {
+                $newQty = $runQty + $qty;
+                if ($newQty > 0) {
+                    $avgInvoice = ($runQty * $avgInvoice + $qty * $invoiceRate) / $newQty;
+                    $avgNet     = ($runQty * $avgNet     + $qty * $netRate)     / $newQty;
+                }
+                $runQty = $newQty;
+            } elseif ($tx->order_type === 'purchase-returns') {
+                $runQty = max(0, $runQty - $qty);
+                // MAC does not change on purchase returns (standard practice)
+            } elseif ($tx->order_type === 'sales') {
+                $runQty = max(0, $runQty - $qty);
+                // MAC does not change on sales
+            } elseif ($tx->order_type === 'sales-returns') {
+                $runQty = $runQty + $qty;
+                // MAC does not change on sales returns
+            }
+        }
+
+        $productDetails->current_avg_cost_invoice = round($avgInvoice, 6);
+        $productDetails->current_avg_cost_net     = round($avgNet,     6);
+        $productDetails->save();
+    }
+
     public static function createProductDetailsForWarehouseIfNotExists($warehouseId, $productId)
     {
         $company = company();
@@ -658,6 +765,10 @@ class Common
         // $stockRecalcPairs: full recalculate for edits/stock-transfers [warehouseId, productId]
         $stockDeltaPairs  = [];
         $stockRecalcPairs = [];
+        // MAC: keyed by "warehouseId_productId" → list of {qty, invoice_rate, net_cost_rate}
+        $macPurchaseData  = [];
+        // MAC recalc needed for edited purchases (full replay)
+        $macRecalcPairs   = [];
 
         if (count($productItems) > 0) {
 
@@ -731,6 +842,30 @@ class Common
                 $orderItem->tax_type = $productItem->tax_type;
                 $orderItem->subtotal = $productItem->subtotal;
                 $orderItem->single_unit_price = $productItem->single_unit_price;
+
+                // MAC: for purchases save net_cost_rate; for sales snapshot current avg costs
+                if ($orderType === 'purchases') {
+                    $orderItem->net_cost_rate = isset($productItem->net_cost_rate) && $productItem->net_cost_rate !== null && $productItem->net_cost_rate !== ''
+                        ? (float)$productItem->net_cost_rate
+                        : (float)$productItem->single_unit_price;
+                } elseif ($orderType === 'sales' || $orderType === 'pos-sales') {
+                    // Use product_id from item (works for both new and edited order items)
+                    $salePid = self::getIdFromHash($productItem->xid);
+                    $saleWid = $orderItem->warehouse_id ?: $order->warehouse_id;
+                    $pd = $productDetailsCache[$saleWid . '_' . $salePid] ?? null;
+                    // For edit items, productDetailsCache may not have it — load fresh
+                    if (!$pd) {
+                        $pd = ProductDetails::withoutGlobalScope('current_warehouse')
+                            ->where('warehouse_id', $saleWid)
+                            ->where('product_id', $salePid)
+                            ->first();
+                    }
+                    if ($pd) {
+                        $orderItem->cost_invoice = (float)($pd->current_avg_cost_invoice ?: $pd->purchase_price ?: 0);
+                        $orderItem->cost_net     = (float)($pd->current_avg_cost_net     ?: $pd->purchase_price ?: 0);
+                    }
+                }
+
                 $orderItem->save();
 
                 // Inserting sub taxes
@@ -775,9 +910,26 @@ class Common
                     if ($orderItem->warehouse_id && $orderItem->warehouse_id != $order->warehouse_id) {
                         $stockRecalcPairs[$order->warehouse_id . '_' . $itemProductId] = [$order->warehouse_id, $itemProductId];
                     }
+
+                    // MAC: collect new purchase item data for incremental MAC update
+                    if ($orderType === 'purchases') {
+                        if (!isset($macPurchaseData[$key])) {
+                            $macPurchaseData[$key] = [$itemWarehouseId, $itemProductId, []];
+                        }
+                        $macPurchaseData[$key][2][] = [
+                            'qty'          => (float)$itemQty,
+                            'invoice_rate' => (float)$orderItem->single_unit_price,
+                            'net_cost_rate'=> (float)($orderItem->net_cost_rate ?? $orderItem->single_unit_price),
+                        ];
+                    }
                 } else {
                     // Edit orders or stock-transfers: use full recalculate for correctness
                     $stockRecalcPairs[$itemWarehouseId . '_' . $itemProductId] = [$itemWarehouseId, $itemProductId];
+
+                    // MAC: edited or deleted purchase → full MAC recalc from history
+                    if ($orderType === 'purchases') {
+                        $macRecalcPairs[$itemWarehouseId . '_' . $itemProductId] = [$itemWarehouseId, $itemProductId];
+                    }
 
                     if ($orderItem->warehouse_id && $orderItem->warehouse_id != $order->warehouse_id) {
                         $stockRecalcPairs[$order->warehouse_id . '_' . $itemProductId] = [$order->warehouse_id, $itemProductId];
@@ -808,6 +960,12 @@ class Common
 
             \Log::info('[POS-SI] items loop done t=' . round(microtime(true)-$tsi, 2) . ' items=' . count($productItems) . ' deltaKeys=' . count($stockDeltaPairs) . ' recalcKeys=' . count($stockRecalcPairs));
 
+            // MAC incremental update for new purchases — MUST run before applyStockDelta
+            // so current_stock still holds pre-purchase value (used as old_qty in formula)
+            foreach ($macPurchaseData as [$wh, $pid, $items]) {
+                self::updateMAC($wh, $pid, $items);
+            }
+
             // Apply fast-path stock deltas (new orders): 2 queries per unique product/warehouse
             foreach ($stockDeltaPairs as [$warehouseId, $productId, $delta]) {
                 self::applyStockDelta($warehouseId, $productId, $delta);
@@ -816,6 +974,11 @@ class Common
             // Full recalculate for edits/stock-transfers/edge-cases: 9 queries per unique pair
             foreach ($stockRecalcPairs as [$warehouseId, $productId]) {
                 self::recalculateOrderStock($warehouseId, $productId);
+            }
+
+            // MAC full recalculation for edited purchases — runs after stock recalc
+            foreach ($macRecalcPairs as [$wh, $pid]) {
+                self::recalculateMACForProduct($wh, $pid);
             }
 
             \Log::info('[POS-SI] stock done t=' . round(microtime(true)-$tsi, 2));

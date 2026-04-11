@@ -58,6 +58,10 @@ const fields = () => {
             dataIndex: "single_unit_price",
         },
         {
+            title: "Net Cost",
+            dataIndex: "net_cost_rate",
+        },
+        {
             title: t("product.discount"),
             dataIndex: "total_discount",
         },

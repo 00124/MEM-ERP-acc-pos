@@ -240,7 +240,7 @@
                     <a-table
                         :row-key="(record) => record.xid"
                         :dataSource="selectedProducts"
-                        :columns="orderItemColumns"
+                        :columns="tableItemColumns"
                         :pagination="false"
                     >
                         <template #bodyCell="{ column, record }">
@@ -266,6 +266,14 @@
                             </template>
                             <template v-if="column.dataIndex === 'single_unit_price'">
                                 {{ formatAmountCurrency(record.single_unit_price) }}
+                            </template>
+                            <template v-if="column.dataIndex === 'net_cost_rate'">
+                                <a-input-number
+                                    v-model:value="record.net_cost_rate"
+                                    :min="0"
+                                    style="width: 100%"
+                                    size="small"
+                                />
                             </template>
                             <template v-if="column.dataIndex === 'discount_amount'">
                                 {{ formatAmountCurrency(record.discount_amount) }}
@@ -299,7 +307,7 @@
                         <template #summary>
                             <a-table-summary-row>
                                 <a-table-summary-cell
-                                    :col-span="4"
+                                    :col-span="orderPageObject.type === 'purchases' ? 5 : 4"
                                 ></a-table-summary-cell>
                                 <a-table-summary-cell>
                                     {{ $t("product.subtotal") }}
@@ -568,6 +576,25 @@
                     </a-form-item>
                 </a-col>
             </a-row>
+            <a-row :gutter="16" v-if="orderPageObject.type === 'purchases'">
+                <a-col :xs="24" :sm="24" :md="24" :lg="24">
+                    <a-form-item
+                        label="Net Cost Rate"
+                        name="net_cost_rate"
+                    >
+                        <a-input-number
+                            v-model:value="addEditFormData.net_cost_rate"
+                            placeholder="Net cost rate"
+                            min="0"
+                            style="width: 100%"
+                        >
+                            <template #addonBefore>
+                                {{ appSetting.currency.symbol }}
+                            </template>
+                        </a-input-number>
+                    </a-form-item>
+                </a-col>
+            </a-row>
             <a-row :gutter="16">
                 <a-col :xs="24" :sm="24" :md="24" :lg="24">
                     <a-form-item
@@ -677,7 +704,7 @@
 </template>
 
 <script>
-import { onMounted, ref, toRefs } from "vue";
+import { onMounted, ref, toRefs, computed } from "vue";
 import {
     EyeOutlined,
     PlusOutlined,
@@ -735,6 +762,11 @@ export default {
             selectedWarehouse,
         } = common();
         const { orderItemColumns } = fields();
+        const tableItemColumns = computed(() =>
+            orderPageObject.value.type === 'purchases'
+                ? orderItemColumns.value
+                : orderItemColumns.value.filter(c => c.dataIndex !== 'net_cost_rate')
+        );
         const {
             state,
             orderType,
@@ -909,7 +941,7 @@ export default {
             editItem,
             orderPageObject,
 
-            orderItemColumns,
+            tableItemColumns,
 
             // Add Edit
             addEditVisible,

@@ -37,6 +37,7 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::post('reports/profit-loss', ['as' => 'api.reports.profit-loss', 'uses' => 'ReportController@profitLoss']);
         ApiRoute::get('reports/branch-profit-loss', ['as' => 'api.reports.branch-profit-loss', 'uses' => 'ReportController@branchProfitLoss']);
         ApiRoute::get('reports/dead-stock', ['as' => 'api.reports.dead-stock', 'uses' => 'ReportController@deadStock']);
+        ApiRoute::post('reports/mac-gross-profit', ['as' => 'api.reports.mac-gross-profit', 'uses' => 'ReportController@macGrossProfit']);
         ApiRoute::get('erp-notifications', ['as' => 'api.erp-notifications.alerts', 'uses' => 'NotificationsController@alerts']);
         ApiRoute::get('erp-notifications/counts', ['as' => 'api.erp-notifications.counts', 'uses' => 'NotificationsController@counts']);
 

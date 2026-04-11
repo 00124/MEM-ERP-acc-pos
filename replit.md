@@ -151,6 +151,33 @@ Port 5000 is mapped to external port 80.
 
 ---
 
+## Moving Average Costing (MAC)
+
+Dual-rate MAC is fully implemented (April 2026):
+
+### New Database Columns
+- **`product_details.current_avg_cost_invoice`** — running MAC using invoice rate (unit price on purchase)
+- **`product_details.current_avg_cost_net`** — running MAC using net cost rate (entered separately per item)
+- **`order_items.net_cost_rate`** — net cost rate entered at purchase time (defaults to `single_unit_price`)
+- **`order_items.cost_invoice`** — snapshot of `current_avg_cost_invoice` captured at time of sale
+- **`order_items.cost_net`** — snapshot of `current_avg_cost_net` captured at time of sale
+
+### Business Logic (`laravel/app/Classes/Common.php`)
+- `updateMAC($warehouseId, $productId, $items)` — incremental MAC update on NEW purchases; runs BEFORE `applyStockDelta` so old stock qty is available
+- `recalculateMACForProduct($warehouseId, $productId)` — full replay of purchase history; triggered on EDITED purchases
+- Formula: `new_avg = (old_qty × old_avg + purchase_qty × rate) / (old_qty + purchase_qty)`
+- Sales: MAC cost snapshot stored in `order_items.cost_invoice` + `cost_invoice_net` at time of sale
+- Purchase returns: MAC does not change (standard practice)
+
+### Frontend
+- **Purchase form** (Create.vue / Edit.vue): "Net Cost" column added to product item table; editable input-number per row
+- Edit modal also has Net Cost Rate field (purchases only)
+
+### Reports
+- `POST /api/v1/reports/mac-gross-profit` — returns per-product gross profit by invoice cost and net cost for a date range
+
+---
+
 ## External Packages (Laravel)
 
 | Package | Purpose |

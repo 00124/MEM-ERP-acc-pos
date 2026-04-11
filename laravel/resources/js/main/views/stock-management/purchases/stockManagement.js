@@ -105,6 +105,7 @@ const stockManagement = () => {
                 unit_price: formatAmount(newProduct.unit_price),
                 tax_amount: formatAmount(newProduct.tax_amount),
                 subtotal: formatAmount(newProduct.subtotal),
+                net_cost_rate: newProduct.net_cost_rate != null ? newProduct.net_cost_rate : newProduct.single_unit_price,
             });
             state.orderSearchTerm = undefined;
             state.products = [];
@@ -339,6 +340,7 @@ const stockManagement = () => {
             id: product.xid,
             discount_rate: product.discount_rate,
             unit_price: product.unit_price,
+            net_cost_rate: product.net_cost_rate != null ? product.net_cost_rate : product.single_unit_price,
             tax_id: product.x_tax_id,
             tax_type: product.tax_type == null ? undefined : product.tax_type,
         };
@@ -365,6 +367,7 @@ const stockManagement = () => {
             ...record[0],
             discount_rate: parseFloat(addEditFormData.value.discount_rate),
             unit_price: parseFloat(addEditFormData.value.unit_price),
+            net_cost_rate: parseFloat(addEditFormData.value.net_cost_rate ?? addEditFormData.value.unit_price),
             tax_id: addEditFormData.value.tax_id,
             tax_rate: selecteTax[0] ? selecteTax[0].rate : 0,
             tax_type: taxType,

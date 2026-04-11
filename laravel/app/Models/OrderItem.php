@@ -49,6 +49,9 @@ class OrderItem extends BaseModel
         'subtotal' => 'double',
         'total_sales_price' => 'double',
         'unit_sold' => 'double',
+        'net_cost_rate' => 'double',
+        'cost_invoice' => 'double',
+        'cost_net' => 'double',
     ];
 
     protected static function boot()

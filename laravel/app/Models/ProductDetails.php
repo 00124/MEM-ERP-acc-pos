@@ -39,6 +39,8 @@ class ProductDetails extends BaseModel
         'opening_stock' => 'double',
         'wholesale_price' => 'double',
         'wholesale_quantity' => 'double',
+        'current_avg_cost_invoice' => 'double',
+        'current_avg_cost_net' => 'double',
     ];
 
     protected static function boot()

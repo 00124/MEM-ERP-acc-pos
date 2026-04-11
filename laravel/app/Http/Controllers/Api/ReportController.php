@@ -417,4 +417,64 @@ class ReportController extends ApiBaseController
             'count'       => count($rows),
         ]);
     }
+
+    /**
+     * Gross Profit Report using Moving Average Cost (MAC).
+     * Returns per-product sale totals with cost_invoice and cost_net breakdowns.
+     * Query params: dates[] (start, end), warehouse_id (xid, optional)
+     */
+    public function macGrossProfit(Request $request)
+    {
+        $warehouseObj = warehouse();
+        $warehouseId  = $warehouseObj ? $warehouseObj->id : null;
+
+        $query = \App\Models\OrderItem::select(
+                'order_items.product_id',
+                \DB::raw('SUM(order_items.quantity)                              AS total_qty'),
+                \DB::raw('SUM(order_items.subtotal)                              AS total_revenue'),
+                \DB::raw('SUM(order_items.quantity * order_items.cost_invoice)   AS total_cost_invoice'),
+                \DB::raw('SUM(order_items.quantity * order_items.cost_net)       AS total_cost_net'),
+                \DB::raw('SUM(order_items.subtotal - order_items.quantity * COALESCE(order_items.cost_invoice, 0)) AS gross_profit_invoice'),
+                \DB::raw('SUM(order_items.subtotal - order_items.quantity * COALESCE(order_items.cost_net, 0))     AS gross_profit_net')
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->where('orders.order_type', 'sales')
+            ->whereNotNull('order_items.cost_invoice');
+
+        // Warehouse filter
+        if ($warehouseId) {
+            $query->where(function ($q) use ($warehouseId) {
+                $q->where('order_items.warehouse_id', $warehouseId)
+                  ->orWhere(function ($inner) use ($warehouseId) {
+                      $inner->whereNull('order_items.warehouse_id')
+                            ->where('orders.warehouse_id', $warehouseId);
+                  });
+            });
+        }
+
+        // Date range filter
+        if ($request->has('dates') && $request->dates && count($request->dates) >= 2) {
+            $start = $request->dates[0];
+            $end   = $request->dates[1];
+            $query->whereRaw('orders.order_date >= ?', [$start])
+                  ->whereRaw('orders.order_date <= ?', [$end]);
+        }
+
+        $rows = $query->groupBy('order_items.product_id')
+            ->with(['product:id,name,item_code'])
+            ->get();
+
+        $summary = [
+            'total_revenue'        => $rows->sum('total_revenue'),
+            'total_cost_invoice'   => $rows->sum('total_cost_invoice'),
+            'total_cost_net'       => $rows->sum('total_cost_net'),
+            'gross_profit_invoice' => $rows->sum('gross_profit_invoice'),
+            'gross_profit_net'     => $rows->sum('gross_profit_net'),
+        ];
+
+        return ApiResponse::make('Gross Profit (MAC)', [
+            'rows'    => $rows,
+            'summary' => $summary,
+        ]);
+    }
 }
