@@ -34,7 +34,7 @@
         <a-row :gutter="[16, 16]">
             <a-col :xs="24" :sm="24" :md="14" :lg="14">
                 <a-space wrap>
-                    <a-button type="primary" @click="addItem">
+                    <a-button type="primary" @click="openAdd">
                         <template #icon><PlusOutlined /></template>
                         Log Warranty / Damage
                     </a-button>
@@ -43,12 +43,12 @@
                         View Report
                     </a-button>
                     <a-button
-                        v-if="table.selectedRowKeys.length > 0"
+                        v-if="selectedRowKeys.length > 0"
                         danger type="primary"
-                        @click="showSelectedDeleteConfirm"
+                        @click="bulkDelete"
                     >
                         <template #icon><DeleteOutlined /></template>
-                        Delete Selected
+                        Delete Selected ({{ selectedRowKeys.length }})
                     </a-button>
                 </a-space>
             </a-col>
@@ -60,13 +60,13 @@
                             placeholder="Filter by type"
                             allow-clear
                             style="width:100%"
-                            @change="reFetchDatatable"
+                            @change="reFetch"
                         >
                             <a-select-option
-                                v-for="t in warrantyTypes"
-                                :key="t.key"
-                                :value="t.key"
-                            >{{ t.label }}</a-select-option>
+                                v-for="wt in warrantyTypes"
+                                :key="wt.key"
+                                :value="wt.key"
+                            >{{ wt.label }}</a-select-option>
                         </a-select>
                     </a-col>
                     <a-col :xs="24" :sm="12" :md="12">
@@ -75,7 +75,7 @@
                             placeholder="Filter by status"
                             allow-clear
                             style="width:100%"
-                            @change="reFetchDatatable"
+                            @change="reFetch"
                         >
                             <a-select-option value="pending">Pending</a-select-option>
                             <a-select-option value="approved">Approved</a-select-option>
@@ -89,15 +89,10 @@
 
     <admin-page-table-content>
         <AddEdit
-            :addEditType="addEditType"
             :visible="addEditVisible"
-            :url="addEditUrl"
-            @addEditSuccess="addEditSuccess"
-            @closed="onCloseAddEdit"
-            :formData="formData"
-            :data="viewData"
-            :pageTitle="pageTitle"
-            :successMessage="successMessage"
+            :editRecord="editRecord"
+            @saved="onSaved"
+            @closed="addEditVisible = false"
         />
 
         <a-row>
@@ -105,8 +100,8 @@
                 <div class="table-responsive">
                     <a-table
                         :row-selection="{
-                            selectedRowKeys: table.selectedRowKeys,
-                            onChange: onRowSelectChange,
+                            selectedRowKeys: selectedRowKeys,
+                            onChange: (keys) => { selectedRowKeys = keys; },
                             getCheckboxProps: (record) => ({
                                 disabled: record.status !== 'pending',
                                 name: record.xid,
@@ -114,12 +109,13 @@
                         }"
                         :columns="columns"
                         :row-key="(record) => record.xid"
-                        :data-source="table.data"
-                        :pagination="table.pagination"
-                        :loading="table.loading"
+                        :data-source="tableData"
+                        :pagination="pagination"
+                        :loading="tableLoading"
                         @change="handleTableChange"
                         bordered
                         size="middle"
+                        :scroll="{ x: 900 }"
                     >
                         <template #bodyCell="{ column, record }">
                             <template v-if="column.dataIndex === 'product_id'">
@@ -169,7 +165,7 @@
                                     <a-button
                                         v-if="record.status === 'pending'"
                                         size="small"
-                                        @click="editItem(record)"
+                                        @click="openEdit(record)"
                                     >
                                         <template #icon><EditOutlined /></template>
                                     </a-button>
@@ -177,7 +173,7 @@
                                         v-if="record.status === 'pending'"
                                         size="small"
                                         danger
-                                        @click="showDeleteConfirm(record.xid)"
+                                        @click="handleDelete(record)"
                                     >
                                         <template #icon><DeleteOutlined /></template>
                                     </a-button>
@@ -192,14 +188,12 @@
 </template>
 
 <script>
-import { onMounted, ref, reactive } from "vue";
+import { defineComponent, ref, reactive, onMounted } from "vue";
 import {
     PlusOutlined, DeleteOutlined, EditOutlined,
     CheckOutlined, SwapOutlined, BarChartOutlined,
 } from "@ant-design/icons-vue";
-import { message } from "ant-design-vue";
-import crud from "../../../../common/composable/crud";
-import common from "../../../../common/composable/common";
+import { message, Modal } from "ant-design-vue";
 import AdminPageHeader from "../../../../common/layouts/AdminPageHeader.vue";
 import AddEdit from "./AddEdit.vue";
 
@@ -210,14 +204,12 @@ const warrantyTypes = [
     { key: "return_to_vendor", label: "Return to Vendor", color: "#722ed1" },
 ];
 
-const addEditUrl = "stock-adjustments";
-
-const initData = {
-    product_id:    "",
-    quantity:      1,
-    warranty_type: undefined,
-    remarks:       "",
-};
+const kpiCards = [
+    { key: "damage",           label: "Damaged Stock",    color: "#FF4D4F" },
+    { key: "expired",          label: "Expired Warranty", color: "#FA8B0C" },
+    { key: "claimable",        label: "Under Claim",      color: "#1677ff" },
+    { key: "return_to_vendor", label: "Return to Vendor", color: "#722ed1" },
+];
 
 const columns = [
     { title: "Product",  dataIndex: "product_id",    width: 200 },
@@ -226,17 +218,10 @@ const columns = [
     { title: "Status",   dataIndex: "status",         width: 110 },
     { title: "Remarks",  dataIndex: "remarks",        ellipsis: true },
     { title: "Date",     dataIndex: "created_at",     width: 105 },
-    { title: "Actions",  dataIndex: "action",         width: 220, fixed: "right" },
+    { title: "Actions",  dataIndex: "action",         width: 230, fixed: "right" },
 ];
 
-const kpiCards = [
-    { key: "damage",           label: "Damaged Stock",    color: "#FF4D4F" },
-    { key: "expired",          label: "Expired Warranty", color: "#FA8B0C" },
-    { key: "claimable",        label: "Under Claim",      color: "#1677ff" },
-    { key: "return_to_vendor", label: "Return to Vendor", color: "#722ed1" },
-];
-
-export default {
+export default defineComponent({
     components: {
         PlusOutlined, DeleteOutlined, EditOutlined,
         CheckOutlined, SwapOutlined, BarChartOutlined,
@@ -244,80 +229,127 @@ export default {
         AdminPageHeader,
     },
     setup() {
-        const crudVariables = crud();
-        const { selectedWarehouse } = common();
-        const summary = ref({});
-        const actionLoading = reactive({});
-        const filters = reactive({ warranty_type: undefined, status: undefined });
+        const addEditVisible  = ref(false);
+        const editRecord      = ref(null);
+        const actionLoading   = reactive({});
+        const summary         = ref({});
+        const tableData       = ref([]);
+        const tableLoading    = ref(false);
+        const selectedRowKeys = ref([]);
+        const filters         = reactive({ warranty_type: undefined, status: undefined });
+        const pagination      = reactive({ current: 1, pageSize: 15, total: 0, showSizeChanger: true });
 
-        const hashableColumns = ["product_id"];
+        const fetchList = async (page = 1) => {
+            tableLoading.value = true;
+            try {
+                const params = {
+                    mode: "warranty",
+                    fields: "xid,product_id,x_product_id,product{id,xid,name,item_code},quantity,warranty_type,status,remarks,created_at",
+                    offset: (page - 1) * pagination.pageSize,
+                    limit: pagination.pageSize,
+                    order: "id desc",
+                };
+                if (filters.warranty_type) params.warranty_type = filters.warranty_type;
+                if (filters.status)        params.status        = filters.status;
 
-        onMounted(() => {
-            crudVariables.crudUrl.value      = addEditUrl;
-            crudVariables.langKey.value      = "stock_adjustment";
-            crudVariables.initData.value     = { ...initData };
-            crudVariables.formData.value     = { ...initData };
-            crudVariables.hashableColumns.value = [...hashableColumns];
+                const res = await axiosAdmin.get("stock-adjustments", { params });
+                tableData.value     = res.data ?? [];
+                pagination.total    = res.meta?.paging?.total ?? tableData.value.length;
+                pagination.current  = page;
+            } catch {
+                message.error("Failed to load warranty records");
+            } finally {
+                tableLoading.value = false;
+            }
+        };
 
-            reFetchDatatable();
+        const fetchSummary = async () => {
+            try {
+                const res = await axiosAdmin.get("stock-adjustments-warranty/report");
+                summary.value = res.data?.summary ?? {};
+            } catch {}
+        };
+
+        const reFetch = () => {
+            selectedRowKeys.value = [];
+            fetchList(1);
+        };
+
+        const handleTableChange = (pag) => {
+            pagination.pageSize = pag.pageSize;
+            fetchList(pag.current);
+        };
+
+        const openAdd  = () => { editRecord.value = null; addEditVisible.value = true; };
+        const openEdit = (r)  => { editRecord.value = r;  addEditVisible.value = true; };
+
+        const onSaved = () => {
+            addEditVisible.value = false;
+            fetchList(pagination.current);
             fetchSummary();
-        });
-
-        const reFetchDatatable = () => {
-            const urlFilters = { ...filters };
-            // Append mode=warranty to the URL to filter only warranty records
-            crudVariables.tableUrl.value = {
-                url: `stock-adjustments?mode=warranty&fields=xid,product_id,x_product_id,product{id,xid,name,item_code},quantity,warranty_type,status,remarks,created_at`,
-                filters: urlFilters,
-            };
-            crudVariables.fetch({ page: 1 });
         };
 
-        const fetchSummary = () => {
-            axiosAdmin
-                .get("stock-adjustments-warranty/report")
-                .then((res) => {
-                    summary.value = res.data ? res.data.summary || {} : {};
-                })
-                .catch(() => {});
-        };
-
-        const handleApprove = (record) => {
+        const handleApprove = async (record) => {
             actionLoading[record.xid] = true;
-            axiosAdmin
-                .post(`stock-adjustments/${record.xid}/approve`)
-                .then(() => {
-                    message.success("Approved — stock reduced.");
-                    reFetchDatatable();
-                    fetchSummary();
-                })
-                .catch((e) => {
-                    message.error(
-                        e && e.response && e.response.data && e.response.data.message
-                            ? e.response.data.message
-                            : "Approval failed"
-                    );
-                })
-                .finally(() => { actionLoading[record.xid] = false; });
+            try {
+                await axiosAdmin.post(`stock-adjustments/${record.xid}/approve`);
+                message.success("Approved — stock reduced.");
+                fetchList(pagination.current);
+                fetchSummary();
+            } catch (e) {
+                message.error(e?.response?.data?.message ?? "Approval failed");
+            } finally { actionLoading[record.xid] = false; }
         };
 
-        const handleReplace = (record) => {
+        const handleReplace = async (record) => {
             actionLoading[record.xid] = true;
-            axiosAdmin
-                .post(`stock-adjustments/${record.xid}/replace`)
-                .then(() => {
-                    message.success("Replacement received — stock restored.");
-                    reFetchDatatable();
+            try {
+                await axiosAdmin.post(`stock-adjustments/${record.xid}/replace`);
+                message.success("Replacement received — stock restored.");
+                fetchList(pagination.current);
+                fetchSummary();
+            } catch (e) {
+                message.error(e?.response?.data?.message ?? "Action failed");
+            } finally { actionLoading[record.xid] = false; }
+        };
+
+        const handleDelete = async (record) => {
+            Modal.confirm({
+                title: "Delete this record?",
+                okType: "danger",
+                okText: "Yes, Delete",
+                cancelText: "Cancel",
+                centered: true,
+                onOk: async () => {
+                    try {
+                        await axiosAdmin.delete(`stock-adjustments/${record.xid}`);
+                        message.success("Record deleted.");
+                        fetchList(pagination.current);
+                        fetchSummary();
+                    } catch (e) {
+                        message.error(e?.response?.data?.message ?? "Delete failed");
+                    }
+                },
+            });
+        };
+
+        const bulkDelete = () => {
+            Modal.confirm({
+                title: `Delete ${selectedRowKeys.value.length} records?`,
+                content: "Only pending records will be deleted.",
+                okType: "danger",
+                okText: "Yes, Delete",
+                cancelText: "Cancel",
+                centered: true,
+                onOk: async () => {
+                    for (const xid of selectedRowKeys.value) {
+                        try { await axiosAdmin.delete(`stock-adjustments/${xid}`); } catch {}
+                    }
+                    selectedRowKeys.value = [];
+                    fetchList(1);
                     fetchSummary();
-                })
-                .catch((e) => {
-                    message.error(
-                        e && e.response && e.response.data && e.response.data.message
-                            ? e.response.data.message
-                            : "Action failed"
-                    );
-                })
-                .finally(() => { actionLoading[record.xid] = false; });
+                },
+            });
         };
 
         const typeLabel = (t) => {
@@ -333,27 +365,22 @@ export default {
         const statusLabel = (s) =>
             s === "pending" ? "Pending" : s === "approved" ? "Approved" : "Completed";
 
+        onMounted(() => {
+            fetchList(1);
+            fetchSummary();
+        });
+
         return {
-            columns,
-            kpiCards,
-            warrantyTypes,
-            filters,
-            summary,
-            actionLoading,
-            selectedWarehouse,
-            ...crudVariables,
-            reFetchDatatable,
-            fetchSummary,
-            handleApprove,
-            handleReplace,
-            typeLabel,
-            typeColor,
-            statusBadge,
-            statusLabel,
-            addEditUrl,
+            columns, kpiCards, warrantyTypes, filters, summary,
+            tableData, tableLoading, pagination, selectedRowKeys, actionLoading,
+            addEditVisible, editRecord,
+            reFetch, handleTableChange,
+            openAdd, openEdit, onSaved,
+            handleApprove, handleReplace, handleDelete, bulkDelete,
+            typeLabel, typeColor, statusBadge, statusLabel,
         };
     },
-};
+});
 </script>
 
 <style scoped>

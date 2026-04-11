@@ -1,56 +1,56 @@
 <template>
     <a-modal
         :open="visible"
+        :title="editRecord ? 'Edit Warranty Record' : 'Log Warranty / Damage'"
         :closable="false"
         :centered="true"
-        title="Log Warranty / Damage"
+        width="560px"
         @ok="onSubmit"
     >
         <a-form layout="vertical">
-            <!-- Product -->
             <a-form-item
                 label="Product"
-                :help="rules.product_id ? rules.product_id.message : null"
-                :validateStatus="rules.product_id ? 'error' : null"
+                :help="errors.product_id"
+                :validate-status="errors.product_id ? 'error' : ''"
                 class="required"
             >
                 <ProductSearchInput
-                    @valueChanged="(pid) => (formData.product_id = pid)"
+                    @valueChanged="(id) => { form.product_id = id; }"
                     @valueSuccess="fetchStock"
-                    :productData="data"
+                    :productData="editRecord"
                 />
             </a-form-item>
 
             <a-row :gutter="16">
-                <a-col :xs="24" :sm="8" :md="8">
+                <a-col :xs="24" :sm="8">
                     <a-form-item label="Current Stock">
-                        <span style="font-weight:600">{{ stockValue }}</span>
+                        <span style="font-weight:600;font-size:14px">{{ currentStock ?? '—' }}</span>
                     </a-form-item>
                 </a-col>
-                <a-col :xs="24" :sm="8" :md="8">
+                <a-col :xs="24" :sm="8">
                     <a-form-item
                         label="Quantity"
-                        :help="rules.quantity ? rules.quantity.message : null"
-                        :validateStatus="rules.quantity ? 'error' : null"
+                        :help="errors.quantity"
+                        :validate-status="errors.quantity ? 'error' : ''"
                         class="required"
                     >
                         <a-input-number
-                            v-model:value="formData.quantity"
+                            v-model:value="form.quantity"
                             :min="1"
                             style="width:100%"
                             placeholder="Qty"
                         />
                     </a-form-item>
                 </a-col>
-                <a-col :xs="24" :sm="8" :md="8">
+                <a-col :xs="24" :sm="8">
                     <a-form-item
                         label="Type"
-                        :help="rules.warranty_type ? rules.warranty_type.message : null"
-                        :validateStatus="rules.warranty_type ? 'error' : null"
+                        :help="errors.warranty_type"
+                        :validate-status="errors.warranty_type ? 'error' : ''"
                         class="required"
                     >
                         <a-select
-                            v-model:value="formData.warranty_type"
+                            v-model:value="form.warranty_type"
                             placeholder="Select type"
                             style="width:100%"
                         >
@@ -64,8 +64,8 @@
             </a-row>
 
             <a-alert
-                v-if="formData.warranty_type"
-                :message="typeDesc[formData.warranty_type]"
+                v-if="form.warranty_type"
+                :message="typeDesc[form.warranty_type]"
                 type="info"
                 show-icon
                 style="margin-bottom:14px"
@@ -73,7 +73,7 @@
 
             <a-form-item label="Remarks / Notes">
                 <a-textarea
-                    v-model:value="formData.remarks"
+                    v-model:value="form.remarks"
                     placeholder="Vendor name, invoice, damage description..."
                     :rows="3"
                 />
@@ -81,41 +81,40 @@
         </a-form>
 
         <template #footer>
-            <a-button key="submit" type="primary" :loading="loading" @click="onSubmit">
+            <a-button type="primary" :loading="loading" @click="onSubmit">
                 <template #icon><SaveOutlined /></template>
-                {{ addEditType === 'add' ? 'Save Record' : 'Update' }}
+                {{ editRecord ? 'Update' : 'Save Record' }}
             </a-button>
-            <a-button key="back" @click="onClose">Cancel</a-button>
+            <a-button @click="$emit('closed')">Cancel</a-button>
         </template>
     </a-modal>
 </template>
 
 <script>
-import { defineComponent, ref } from "vue";
+import { defineComponent, ref, watch, reactive } from "vue";
 import { SaveOutlined } from "@ant-design/icons-vue";
-import apiAdmin from "../../../../common/composable/apiAdmin";
+import { message } from "ant-design-vue";
 import ProductSearchInput from "../../../../common/components/product/ProductSearchInput.vue";
 import common from "../../../../common/composable/common";
 
 export default defineComponent({
-    props: [
-        "formData",
-        "data",
-        "visible",
-        "url",
-        "addEditType",
-        "pageTitle",
-        "successMessage",
-    ],
-    emits: ["addEditSuccess", "closed"],
-    components: {
-        SaveOutlined,
-        ProductSearchInput,
-    },
+    props: ["visible", "editRecord"],
+    emits: ["saved", "closed"],
+    components: { SaveOutlined, ProductSearchInput },
     setup(props, { emit }) {
         const { selectedWarehouse } = common();
-        const { addEditRequestAdmin, loading, rules } = apiAdmin();
-        const stockValue = ref("-");
+        const loading      = ref(false);
+        const currentStock = ref(null);
+        const errors       = reactive({});
+
+        const blankForm = () => ({
+            product_id:    undefined,
+            quantity:      1,
+            warranty_type: undefined,
+            remarks:       "",
+        });
+
+        const form = reactive(blankForm());
 
         const typeDesc = {
             damage:           "Damaged stock will be removed from available inventory upon approval.",
@@ -124,46 +123,63 @@ export default defineComponent({
             return_to_vendor: "Items being returned to vendor — stock restored when replacement arrives.",
         };
 
+        watch(() => props.visible, (v) => {
+            if (v) {
+                Object.assign(form, blankForm());
+                Object.keys(errors).forEach((k) => delete errors[k]);
+                currentStock.value = null;
+
+                if (props.editRecord) {
+                    form.product_id    = props.editRecord.x_product_id;
+                    form.quantity      = props.editRecord.quantity;
+                    form.warranty_type = props.editRecord.warranty_type;
+                    form.remarks       = props.editRecord.remarks ?? "";
+                }
+            }
+        });
+
         const fetchStock = () => {
-            if (props.formData && props.formData.product_id) {
-                axiosAdmin
-                    .post("product-warehouse-stock", {
-                        warehouse_id: selectedWarehouse.value.id,
-                        product_id:   props.formData.product_id,
-                    })
-                    .then((res) => {
-                        stockValue.value = res.data.stock;
-                    });
-            } else {
-                stockValue.value = "-";
+            if (!form.product_id) { currentStock.value = null; return; }
+            axiosAdmin
+                .post("product-warehouse-stock", {
+                    warehouse_id: selectedWarehouse.value.id,
+                    product_id:   form.product_id,
+                })
+                .then((r) => { currentStock.value = r.data.stock; })
+                .catch(() => {});
+        };
+
+        const onSubmit = async () => {
+            Object.keys(errors).forEach((k) => delete errors[k]);
+            if (!form.product_id)    errors.product_id    = "Product is required";
+            if (!form.quantity)      errors.quantity      = "Quantity is required";
+            if (!form.warranty_type) errors.warranty_type = "Type is required";
+            if (Object.keys(errors).length) return;
+
+            loading.value = true;
+            try {
+                const payload = { ...form };
+                if (props.editRecord) {
+                    await axiosAdmin.put(`stock-adjustments/${props.editRecord.xid}`, payload);
+                    message.success("Record updated.");
+                } else {
+                    await axiosAdmin.post("stock-adjustments", payload);
+                    message.success("Warranty record logged. Awaiting approval.");
+                }
+                emit("saved");
+            } catch (e) {
+                const data = e?.response?.data ?? e?.data;
+                if (data?.error?.details) {
+                    Object.assign(errors, data.error.details);
+                } else {
+                    message.error(data?.message ?? "Save failed");
+                }
+            } finally {
+                loading.value = false;
             }
         };
 
-        const onSubmit = () => {
-            addEditRequestAdmin({
-                url:            props.url,
-                data:           props.formData,
-                successMessage: props.successMessage,
-                success: (res) => {
-                    emit("addEditSuccess", res.xid);
-                },
-            });
-        };
-
-        const onClose = () => {
-            rules.value = {};
-            emit("closed");
-        };
-
-        return {
-            loading,
-            rules,
-            stockValue,
-            typeDesc,
-            fetchStock,
-            onSubmit,
-            onClose,
-        };
+        return { form, errors, loading, currentStock, typeDesc, fetchStock, onSubmit };
     },
 });
 </script>
