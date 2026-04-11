@@ -35,6 +35,7 @@ export default [
                     requireAuth: true,
                     menuParent: "warranty_damage",
                     menuKey: (route) => "warranty_damage",
+                    permission: (route) => "stock_adjustments_view",
                 },
             },
             {
@@ -46,6 +47,7 @@ export default [
                     requireAuth: true,
                     menuParent: "warranty_damage",
                     menuKey: (route) => "warranty_damage",
+                    permission: (route) => "stock_adjustments_view",
                 },
             },
             // Purchases
