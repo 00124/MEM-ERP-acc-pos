@@ -18,7 +18,7 @@ class StockAdjustment extends BaseModel
 
     protected $appends = ['xid', 'x_warehouse_id', 'x_product_id', 'x_created_by'];
 
-    protected $filterable = ['warehouse_id', 'product_id'];
+    protected $filterable = ['warehouse_id', 'product_id', 'warranty_type', 'status'];
 
     protected $hashableGetterFunctions = [
         'getXWarehouseIdAttribute' => 'warehouse_id',

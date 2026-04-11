@@ -160,6 +160,9 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::resource('warehouses', 'WarehouseController',  ['as' => 'api', 'except' => ['index']]);
         ApiRoute::resource('custom-fields', 'CustomFieldController', $options);
         ApiRoute::resource('stock-adjustments', 'StockAdjustmentController', $options);
+        ApiRoute::get('stock-adjustments-warranty/report', ['as' => 'api.stock-adjustments.warranty.report', 'uses' => 'StockAdjustmentController@warrantyReport']);
+        ApiRoute::post('stock-adjustments/{xid}/approve', ['as' => 'api.stock-adjustments.approve', 'uses' => 'StockAdjustmentController@approve']);
+        ApiRoute::post('stock-adjustments/{xid}/replace', ['as' => 'api.stock-adjustments.replace', 'uses' => 'StockAdjustmentController@replace']);
         ApiRoute::resource('purchases', 'PurchaseController', $options);
         ApiRoute::resource('grn', 'GrnController', $options);
         ApiRoute::get('grn/purchase-order/{id}', ['as' => 'api.grn.purchase-order', 'uses' => 'GrnController@purchaseOrderForGrn']);

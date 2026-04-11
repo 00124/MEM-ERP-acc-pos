@@ -26,6 +26,28 @@ export default [
                     permission: "stock_adjustments_view",
                 },
             },
+            {
+                path: "warranty",
+                component: () =>
+                    import("../views/stock-management/warranty/index.vue"),
+                name: "admin.stock.warranty.index",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "warranty_damage",
+                    menuKey: "warranty_damage",
+                },
+            },
+            {
+                path: "warranty/report",
+                component: () =>
+                    import("../views/stock-management/warranty/Report.vue"),
+                name: "admin.stock.warranty.report",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "warranty_damage",
+                    menuKey: "warranty_damage",
+                },
+            },
             // Purchases
             {
                 path: "purchases/edit/:id",

@@ -476,6 +476,22 @@
                         <span>{{ $t("menu.stock_adjustment") }}</span>
                     </a-menu-item>
 
+                    <!-- Warranty & Damage -->
+                    <a-menu-item
+                        @click="
+                            () => {
+                                menuSelected();
+                                $router.push({
+                                    name: 'admin.stock.warranty.index',
+                                });
+                            }
+                        "
+                        key="warranty_damage"
+                    >
+                        <SafetyOutlined />
+                        <span>Warranty &amp; Damage</span>
+                    </a-menu-item>
+
                     <a-menu-item
                         v-if="
                             (permsArray.includes('pos_view') ||
@@ -1093,6 +1109,7 @@ import {
     LaptopOutlined,
     CarOutlined,
     DollarCircleOutlined,
+    SafetyOutlined,
 } from "@ant-design/icons-vue";
 import { PerfectScrollbar } from "vue3-perfect-scrollbar";
 import common from "../../common/composable/common";
@@ -1123,6 +1140,7 @@ export default defineComponent({
         LaptopOutlined,
         CarOutlined,
         DollarCircleOutlined,
+        SafetyOutlined,
     },
     setup(props, { emit }) {
         const {
