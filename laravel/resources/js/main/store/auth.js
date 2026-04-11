@@ -52,7 +52,7 @@ export default {
             token: window.localStorage.getItem(AUTH_TOKEN) || null,
             expires: window.localStorage.getItem(EXIPRES_KEY) || null,
             globalSetting: getJSONFromLocalStorage(GLOBAL_SETTINGS_KEY),
-            appSetting: getJSONFromLocalStorage(APP_SETTINGS_KEY),
+            appSetting: getJSONFromLocalStorage(APP_SETTINGS_KEY) || {},
             addMenus: getJSONFromLocalStorage(ADD_MENUS) || [],
             visibleSubscriptionModules: getJSONFromLocalStorage(VISIBLE_SUBSCRIPTION_MODULES) || [],
             perPage: window.localStorage.getItem(PER_PAGE_ITEM) || window.config.path,
@@ -134,7 +134,7 @@ export default {
             state.pageTitle = pageTitle;
             window.localStorage.setItem(PAGE_TITLE, pageTitle);
 
-            if (state.appSetting !== null && state.appSetting !== undefined) {
+            if (state.appSetting && state.appSetting.name) {
                 document.title = `${pageTitle} - ${state.appSetting.name}`;
             }
             else {
