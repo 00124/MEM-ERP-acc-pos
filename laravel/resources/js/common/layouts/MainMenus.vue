@@ -204,6 +204,30 @@
                         </a-menu-item>
                 </a-sub-menu>
 
+                <!-- Dispatches -->
+                <a-sub-menu key="dispatches_menu" v-if="permsArray.includes('dispatches_view') || permsArray.includes('admin')">
+                        <template #icon><CarOutlined /></template>
+                        <template #title>Dispatches</template>
+                        <a-menu-item
+                                @click="() => { menuSelected(); $router.push({ name: 'admin.stock.dispatches.index' }); }"
+                                key="dispatches"
+                        >
+                                Dispatch List
+                        </a-menu-item>
+                        <a-menu-item
+                                @click="() => { menuSelected(); $router.push({ name: 'admin.stock.dispatches.create' }); }"
+                                key="dispatches_create"
+                        >
+                                Create Dispatch
+                        </a-menu-item>
+                        <a-menu-item
+                                @click="() => { menuSelected(); $router.push({ name: 'admin.stock.dispatches.report' }); }"
+                                key="dispatches_report"
+                        >
+                                Delivery Report
+                        </a-menu-item>
+                </a-sub-menu>
+
                 <a-menu-item
                         @click="
                                 () => {
@@ -512,6 +536,7 @@ import {
         BankOutlined,
         TransactionOutlined,
         BellOutlined,
+        CarOutlined,
 } from "@ant-design/icons-vue";
 import { PerfectScrollbar } from "vue3-perfect-scrollbar";
 import common from "../../common/composable/common";
@@ -538,6 +563,7 @@ export default defineComponent({
                 BankOutlined,
                 TransactionOutlined,
                 BellOutlined,
+                CarOutlined,
         },
         setup(props, { emit }) {
                 const { appSetting, user, permsArray, appModules, cssSettings } = common();

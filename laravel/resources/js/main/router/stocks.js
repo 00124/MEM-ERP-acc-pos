@@ -142,6 +142,56 @@ export default [
                 },
             },
 
+            // Dispatch Management
+            {
+                path: "dispatches",
+                component: () =>
+                    import("../views/stock-management/dispatches/index.vue"),
+                name: "admin.stock.dispatches.index",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "dispatches",
+                    menuKey: (route) => "dispatches",
+                    permission: (route) => "dispatches_view",
+                },
+            },
+            {
+                path: "dispatches/create",
+                component: () =>
+                    import("../views/stock-management/dispatches/Create.vue"),
+                name: "admin.stock.dispatches.create",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "dispatches",
+                    menuKey: (route) => "dispatches",
+                    permission: (route) => "dispatches_view",
+                },
+            },
+            {
+                path: "dispatches/:id/gate-pass",
+                component: () =>
+                    import("../views/stock-management/dispatches/GatePass.vue"),
+                name: "admin.stock.dispatches.gate-pass",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "dispatches",
+                    menuKey: (route) => "dispatches",
+                    permission: (route) => "dispatches_view",
+                },
+            },
+            {
+                path: "dispatches/report",
+                component: () =>
+                    import("../views/stock-management/dispatches/Report.vue"),
+                name: "admin.stock.dispatches.report",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "dispatches",
+                    menuKey: (route) => "dispatches",
+                    permission: (route) => "dispatches_view",
+                },
+            },
+
             // Purchase Returns
             {
                 path: "purchase-returns/edit/:id",

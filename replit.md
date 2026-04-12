@@ -210,6 +210,57 @@ Fully implemented (April 2026).
 
 ---
 
+## Dispatch Management System
+
+Fully implemented (April 2026). Multi-warehouse, per-dispatch gate pass system.
+
+### New DB Tables
+- **`dispatches`**: dispatch_number (auto DISP-0001), sale_id, warehouse_id, customer_id, dispatch_date, status (pending/dispatched/delivered), driver_name, vehicle_no, remarks
+- **`dispatch_items`**: dispatch_id, product_id, order_item_id, quantity, warehouse_id
+
+### How It Works
+1. **Create Dispatch**: Go to Dispatches → Create Dispatch → search for a sale invoice
+2. The sale items load automatically with the sale's default warehouse pre-selected
+3. Change the warehouse per product as needed
+4. On submit, items are **automatically grouped by warehouse** → one dispatch record per warehouse
+5. Stock validation checks available quantity per warehouse before creating dispatch
+6. Each dispatch gets a unique `DISP-0001` number
+
+### Status Workflow
+`pending` → `dispatched` → `delivered` (updatable from the list page)
+
+### Gate Pass
+- Click "Gate Pass" on any dispatch from the list to open the printable gate pass
+- Shows: dispatch number, sale invoice, customer, salesman, warehouse, driver, vehicle, all items with qty
+- Has 4 signature blocks: Prepared By, Checked By, Security Guard, Received By
+- Press Print to send to printer (print styles hide browser UI)
+
+### Multi-Location Logic
+- One sale → Products from Warehouse A and Warehouse B
+- System auto-creates: Dispatch #1 for Warehouse A, Dispatch #2 for Warehouse B
+- Each dispatch has its own gate pass
+
+### Reports
+- **Dispatch List**: `/admin/stock/dispatches` — filterable by status, date range, search
+- **Delivery Report**: `/admin/stock/dispatches/report` — summary stats (total/pending/dispatched/delivered) + full table
+
+### API Endpoints (all under `/api/v1/`)
+- `GET dispatches` — list with filters
+- `POST dispatches` — create (auto-groups by warehouse)
+- `GET dispatches/sale-items?sale_id=XID` — load sale items for form
+- `GET dispatches/report` — delivery status report
+- `GET dispatches/{xid}` — show single dispatch
+- `POST dispatches/{xid}/status` — update status
+- `GET dispatches/{xid}/gate-pass` — gate pass print data
+
+### Frontend (Menu: Dispatches sub-menu in main nav)
+- **Dispatch List**: Dispatch #, Sale Invoice, Warehouse, Customer, Driver, Vehicle, Status, Actions
+- **Create Dispatch**: Sale search → auto-load items → warehouse dropdown per product → preview groups → create
+- **Gate Pass**: Printable A4 document per dispatch
+- **Delivery Report**: Summary stats + filterable table
+
+---
+
 ## External Packages (Laravel)
 
 | Package | Purpose |

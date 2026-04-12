@@ -167,6 +167,15 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::resource('purchases', 'PurchaseController', $options);
         ApiRoute::resource('grn', 'GrnController', $options);
         ApiRoute::get('grn/purchase-order/{id}', ['as' => 'api.grn.purchase-order', 'uses' => 'GrnController@purchaseOrderForGrn']);
+
+        // Dispatch Management
+        ApiRoute::get('dispatches', ['as' => 'api.dispatches.index', 'uses' => 'DispatchController@index']);
+        ApiRoute::post('dispatches', ['as' => 'api.dispatches.store', 'uses' => 'DispatchController@store']);
+        ApiRoute::get('dispatches/report', ['as' => 'api.dispatches.report', 'uses' => 'DispatchController@report']);
+        ApiRoute::get('dispatches/sale-items', ['as' => 'api.dispatches.sale-items', 'uses' => 'DispatchController@saleItems']);
+        ApiRoute::get('dispatches/{xid}', ['as' => 'api.dispatches.show', 'uses' => 'DispatchController@show']);
+        ApiRoute::post('dispatches/{xid}/status', ['as' => 'api.dispatches.update-status', 'uses' => 'DispatchController@updateStatus']);
+        ApiRoute::get('dispatches/{xid}/gate-pass', ['as' => 'api.dispatches.gate-pass', 'uses' => 'DispatchController@gatePass']);
         ApiRoute::resource('purchase-returns', 'PurchaseReturnsController', $options);
         ApiRoute::resource('stock-transfers', 'StockTransferController', $options);
         ApiRoute::resource('cash-transfers', 'CashTransferController', $options);

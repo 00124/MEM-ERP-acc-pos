@@ -1,0 +1,140 @@
+I am using Stocklify ERP (Laravel + MySQL).
+
+I want to implement a complete Dispatch Management System with Multi-Location (Multiple Warehouses per Sale) support.
+
+Do not break existing sales or stock logic. Extend cleanly.
+
+========================
+
+1. Database Tables
+   ========================
+
+Create:
+
+dispatches:
+
+* id
+* sale_id
+* branch_id
+* customer_id
+* dispatch_date
+* status (pending, dispatched, delivered)
+* driver_name
+* vehicle_no
+* remarks
+* created_at
+
+dispatch_items:
+
+* id
+* dispatch_id
+* product_id
+* quantity
+* warehouse_id
+
+========================
+2. Dispatch Creation
+====================
+
+* Create dispatch from sale
+* Load all sale items automatically
+* For each product, allow selecting:
+
+  * warehouse/store (dropdown per row)
+
+========================
+3. Multi-Location Logic
+=======================
+
+* Group items by warehouse_id
+* Automatically create separate dispatch records for each warehouse
+
+Example:
+If a sale has:
+
+* Product A → Warehouse A
+* Product B → Warehouse B
+
+System should create:
+
+* Dispatch #1 (Warehouse A)
+* Dispatch #2 (Warehouse B)
+
+========================
+4. Gate Pass Integration
+========================
+
+* Generate separate gate pass per dispatch (per warehouse)
+* Gate pass should show:
+
+  * Product
+  * Quantity
+  * Warehouse
+  * Customer
+  * Salesman name
+
+========================
+5. Stock Handling
+=================
+
+* Deduct stock at dispatch time (not at sale)
+* Deduct from selected warehouse only
+* Validate stock availability per warehouse before dispatch
+
+========================
+6. Status Workflow
+==================
+
+Dispatch statuses:
+
+* pending
+* dispatched
+* delivered
+
+Allow updating status from UI
+
+========================
+7. UI Requirements
+==================
+
+Create:
+
+* Dispatch List Page
+* Dispatch Create Form
+
+Dispatch Form:
+
+* Sale selection
+* Auto load products
+* Warehouse dropdown per product
+* Driver name
+* Vehicle number
+* Dispatch date
+
+========================
+8. Reports
+==========
+
+Create reports:
+
+* Dispatch report (filter by date, branch, warehouse)
+* Delivery status report
+
+========================
+9. Validation
+=============
+
+* Prevent dispatch if stock is insufficient in selected warehouse
+* Prevent same warehouse duplication errors
+* Ensure all products have warehouse selected
+
+========================
+10. Goal
+========
+
+Build a professional dispatch system with:
+
+* Multi-warehouse support
+* Accurate stock movement
+* Separate gate passes per location
+* Full delivery tracking
