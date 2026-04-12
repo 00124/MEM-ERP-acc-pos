@@ -184,6 +184,14 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::resource('sales-returns', 'SalesReturnsController', $options);
         ApiRoute::get('verified-email', ['as' => 'api.settings.verified-email', 'uses' => 'AuthController@getVerfiedEmailSetting']);
 
+        // Bank Accounts
+        ApiRoute::get('bank-accounts', ['as' => 'api.bank-accounts.index', 'uses' => 'BankAccountController@index']);
+        ApiRoute::post('bank-accounts', ['as' => 'api.bank-accounts.store', 'uses' => 'BankAccountController@store']);
+        ApiRoute::put('bank-accounts/{id}', ['as' => 'api.bank-accounts.update', 'uses' => 'BankAccountController@update']);
+        ApiRoute::delete('bank-accounts/{id}', ['as' => 'api.bank-accounts.destroy', 'uses' => 'BankAccountController@destroy']);
+        ApiRoute::get('bank-accounts/dropdown', ['as' => 'api.bank-accounts.dropdown', 'uses' => 'BankAccountController@dropdown']);
+        ApiRoute::get('bank-accounts/{id}/transactions', ['as' => 'api.bank-accounts.transactions', 'uses' => 'BankAccountController@transactions']);
+
         // Cheque Books
         ApiRoute::get('cheque-books', ['as' => 'api.cheque-books.index', 'uses' => 'ChequeBookController@index']);
         ApiRoute::post('cheque-books', ['as' => 'api.cheque-books.store', 'uses' => 'ChequeBookController@store']);

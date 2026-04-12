@@ -133,6 +133,32 @@ export default [
                     menuKey: () => "accounting_category_mapping",
                 },
             },
+            {
+                path: "/admin/accounting/bank-accounts",
+                component: () =>
+                    import(
+                        "../views/accounting/bank-accounts/index.vue"
+                    ),
+                name: "admin.accounting.bank_accounts.index",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "accounting",
+                    menuKey: () => "accounting_bank_accounts",
+                },
+            },
+            {
+                path: "/admin/accounting/bank-accounts/:id/transactions",
+                component: () =>
+                    import(
+                        "../views/accounting/bank-accounts/Transactions.vue"
+                    ),
+                name: "admin.accounting.bank_accounts.transactions",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "accounting",
+                    menuKey: () => "accounting_bank_accounts",
+                },
+            },
         ],
     },
 ];
