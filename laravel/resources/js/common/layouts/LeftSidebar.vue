@@ -510,6 +510,12 @@
                             Register
                         </a-menu-item>
                         <a-menu-item
+                            key="cheque_clearance"
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.cheque-books.clearance' }); }"
+                        >
+                            Cheque Clearance
+                        </a-menu-item>
+                        <a-menu-item
                             key="cheque_books_report"
                             @click="() => { menuSelected(); $router.push({ name: 'admin.cheque-books.report' }); }"
                         >

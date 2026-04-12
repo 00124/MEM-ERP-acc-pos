@@ -190,6 +190,98 @@ class ChequeBookController extends Controller
         return response()->json(['message' => 'Cheque cancelled.', 'data' => $cheque->fresh()]);
     }
 
+    public function clearCheque(Request $request, $chequeId)
+    {
+        $decodedId = hashids()->decode($chequeId)[0] ?? null;
+        if (!$decodedId) return response()->json(['message' => 'Not found.'], 404);
+
+        $cheque = Cheque::findOrFail($decodedId);
+
+        if ($cheque->status !== 'issued') {
+            return response()->json(['message' => 'Only issued cheques can be cleared. Current status: ' . $cheque->status], 422);
+        }
+
+        $request->validate([
+            'clear_date' => 'required|date',
+        ]);
+
+        $cheque->update([
+            'status'     => 'cleared',
+            'clear_date' => $request->clear_date,
+            'cleared_by' => auth()->id(),
+        ]);
+
+        return response()->json(['message' => 'Cheque cleared successfully.', 'data' => $cheque->fresh()]);
+    }
+
+    public function bounceCheque(Request $request, $chequeId)
+    {
+        $decodedId = hashids()->decode($chequeId)[0] ?? null;
+        if (!$decodedId) return response()->json(['message' => 'Not found.'], 404);
+
+        $cheque = Cheque::findOrFail($decodedId);
+
+        if (!in_array($cheque->status, ['issued', 'cleared'])) {
+            return response()->json(['message' => 'Only issued or cleared cheques can be marked bounced.'], 422);
+        }
+
+        $cheque->update([
+            'status'       => 'bounced',
+            'bounce_reason' => $request->bounce_reason ?? null,
+        ]);
+
+        // Restore remaining count if it was issued (not yet cleared)
+        // No book count change needed — remaining was already decremented when issued
+
+        return response()->json(['message' => 'Cheque marked as bounced.', 'data' => $cheque->fresh()]);
+    }
+
+    public function clearanceList(Request $request)
+    {
+        $query = Cheque::with('chequeBook')
+            ->whereIn('status', ['issued', 'cleared', 'bounced'])
+            ->orderBy('issue_date', 'desc');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('cheque_book_id')) {
+            $decodedId = hashids()->decode($request->cheque_book_id)[0] ?? null;
+            if ($decodedId) $query->where('cheque_book_id', $decodedId);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->where('issue_date', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->where('issue_date', '<=', $request->date_to);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('cheque_no', 'like', "%{$search}%")
+                  ->orWhere('payee', 'like', "%{$search}%");
+            });
+        }
+
+        $cheques = $query->get();
+
+        $summary = [
+            'total_pending'        => $cheques->where('status', 'issued')->count(),
+            'total_cleared_amount' => $cheques->where('status', 'cleared')->sum('amount'),
+            'total_pending_amount' => $cheques->where('status', 'issued')->sum('amount'),
+            'total_bounced_amount' => $cheques->where('status', 'bounced')->sum('amount'),
+        ];
+
+        return response()->json([
+            'data'    => $cheques,
+            'summary' => $summary,
+        ]);
+    }
+
     public function report(Request $request)
     {
         $query = Cheque::with('chequeBook')

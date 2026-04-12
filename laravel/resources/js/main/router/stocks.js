@@ -194,6 +194,18 @@ export default [
 
             // Cheque Books
             {
+                path: "cheque-books/clearance",
+                component: () =>
+                    import("../views/cheque-books/Clearance.vue"),
+                name: "admin.cheque-books.clearance",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "cheque_books",
+                    menuKey: (route) => "cheque_clearance",
+                    permission: (route) => "admin",
+                },
+            },
+            {
                 path: "cheque-books",
                 component: () =>
                     import("../views/cheque-books/index.vue"),

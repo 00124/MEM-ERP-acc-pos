@@ -1,0 +1,164 @@
+I am using Stocklify ERP (Laravel + Vue/Blade + MySQL).
+
+I want to redesign and implement a MODERN Cheque Clearance module (replace old traditional grid UI with a modern dashboard UI).
+
+Do NOT use desktop-style design. Follow modern web ERP standards similar to POS page design.
+
+========================
+
+1. Page Layout
+   ========================
+
+Create a clean page layout:
+
+* Page Title: Cheque Clearance
+* White background
+* Blue theme (same as POS)
+* Proper spacing and padding
+
+Structure:
+
+[ Filters Section ]
+[ Summary Cards ]
+[ Data Table ]
+
+========================
+2. Filters Section (Top Bar)
+============================
+
+Add horizontal filter bar:
+
+* Bank Account Dropdown
+* Date Range Picker
+* Status Filter (Pending / Cleared / Bounced)
+* Search Input (Cheque No / Party Name)
+* Export Button (PDF / Excel)
+
+Style:
+
+* Inline fields
+* Clean spacing
+* Same input style as POS
+
+========================
+3. Summary Cards (IMPORTANT)
+============================
+
+Add 4 cards at top:
+
+* Total Pending Cheques
+* Total Cleared Amount
+* Total Pending Amount
+* Total Bounced Amount
+
+Design:
+
+* White cards
+* Rounded corners
+* Soft shadow
+* Blue icons
+* Large bold numbers
+
+========================
+4. Cheque List Table
+====================
+
+Create a modern responsive table:
+
+Columns:
+
+* Cheque No
+* Bank
+* Party Name
+* Amount
+* Issue Date
+* Status (badge)
+* Actions
+
+Features:
+
+* Pagination
+* Search filtering
+* Sortable columns
+
+Status badges:
+
+* Pending → Yellow
+* Cleared → Green
+* Bounced → Red
+
+========================
+5. Actions (Modern UX)
+======================
+
+Instead of checkbox grid:
+
+Add buttons per row:
+
+* "Clear"
+* "Mark as Bounced"
+
+On click:
+
+* Open modal popup
+
+========================
+6. Modal Design
+===============
+
+Modern popup modal:
+
+Fields:
+
+* Cheque No (readonly)
+* Amount
+* Clear Date
+
+Buttons:
+
+* Cancel
+* Confirm
+
+========================
+7. Accounting Logic
+===================
+
+On clearing cheque:
+
+* status = cleared
+* set clear_date
+
+Post entry:
+Cheque Payable Dr
+To Bank Cr
+
+On bounce:
+
+* status = bounced
+* reverse entry
+
+========================
+8. UI Styling
+=============
+
+Use:
+
+* White background
+* Primary blue color (same as POS)
+* Rounded buttons
+* Soft shadows
+* Consistent fonts (same as POS page)
+
+========================
+9. Responsiveness
+=================
+
+* Cards stack on mobile
+* Table scrollable
+* Buttons full width on small screens
+
+========================
+10. Goal
+========
+
+Transform cheque clearance into a modern, user-friendly, dashboard-style module with clean UI and better usability.
