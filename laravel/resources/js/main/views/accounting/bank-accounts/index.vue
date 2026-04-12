@@ -168,7 +168,7 @@
             :width="520"
             centered
         >
-            <a-form layout="vertical" @finish="saveAccount">
+            <a-form layout="vertical">
                 <a-row :gutter="[16, 0]">
                     <a-col :span="24">
                         <a-form-item label="Bank Name" required>
@@ -214,7 +214,7 @@
                 <div style="text-align: right; margin-top: 8px">
                     <a-space>
                         <a-button @click="showFormModal = false">Cancel</a-button>
-                        <a-button type="primary" html-type="submit" :loading="saving">
+                        <a-button type="primary" @click="saveAccount" :loading="saving">
                             {{ editingAccount ? 'Update' : 'Create Account' }}
                         </a-button>
                     </a-space>
@@ -314,7 +314,7 @@ export default defineComponent({
                 showFormModal.value = false;
                 fetchAccounts();
             } catch (err) {
-                message.error(err.response?.data?.message || 'Save failed.');
+                message.error(err?.data?.message || 'Save failed.');
             } finally {
                 saving.value = false;
             }
@@ -326,7 +326,7 @@ export default defineComponent({
                 message.success('Bank account deleted.');
                 fetchAccounts();
             } catch (err) {
-                message.error(err.response?.data?.message || 'Delete failed.');
+                message.error(err?.data?.message || 'Delete failed.');
             }
         };
 
