@@ -205,7 +205,7 @@
                 </a-sub-menu>
 
                 <!-- Dispatches -->
-                <a-sub-menu key="dispatches_menu" v-if="permsArray.includes('dispatches_view') || permsArray.includes('admin')">
+                <a-sub-menu key="dispatches" v-if="permsArray.includes('dispatches_view') || permsArray.includes('admin')">
                         <template #icon><CarOutlined /></template>
                         <template #title>Dispatches</template>
                         <a-menu-item

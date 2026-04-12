@@ -1,0 +1,100 @@
+The Dispatch module backend and Create.vue are already implemented, but I still cannot see the Dispatch form or button in the UI.
+
+This is a frontend rendering / routing issue. Please debug and fix completely.
+
+========================
+
+1. Route Registration (CRITICAL)
+   ========================
+
+* Verify frontend route exists (Vue router):
+
+{
+path: '/dispatch/create',
+name: 'dispatch.create',
+component: () => import('@/views/dispatch/Create.vue')
+}
+
+* Ensure this route is actually registered in router/index.js
+
+* Confirm no typo in path or file name
+
+========================
+2. Menu / Sidebar Link
+======================
+
+* Ensure sidebar menu links correctly:
+
+<router-link to="/dispatch/create">Create Dispatch</router-link>
+
+* Verify Dispatch menu is visible for current user role
+
+========================
+3. Component Loading Issue
+==========================
+
+* Confirm Create.vue exists at:
+  /src/views/dispatch/Create.vue
+
+* Add console.log("Dispatch Create Loaded") inside mounted() to verify component loads
+
+If not logging → component is not rendering
+
+========================
+4. Permission / Middleware Check
+================================
+
+* Check if route is blocked by permission/role middleware
+
+* Temporarily disable permission check for dispatch routes
+
+========================
+5. Layout Issue (VERY COMMON)
+=============================
+
+* Check if page is loading but hidden due to layout issue
+
+* Inspect DOM → see if component exists but not visible
+
+* Fix CSS issues:
+
+  * display: none
+  * hidden container
+  * z-index overlay
+
+========================
+6. JavaScript Errors
+====================
+
+* Open browser console (F12)
+* Fix any red errors preventing rendering
+
+========================
+7. Router View Check
+====================
+
+* Ensure main layout has: <router-view />
+
+Without this, pages will not render
+
+========================
+8. Hard Debug Step
+==================
+
+Temporarily add test route:
+
+{
+path: '/test-dispatch',
+component: { template: '<h1>Dispatch Working</h1>' }
+}
+
+If this does not render → router/layout issue
+
+========================
+9. Final Goal
+=============
+
+* Clicking "Create Dispatch" should open Create.vue
+* Form should be fully visible and usable
+
+Fix root cause, not workaround.
