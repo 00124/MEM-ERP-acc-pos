@@ -222,11 +222,11 @@ export default defineComponent({
                 if (filters.value.dateRange?.[1]) params.date_to = filters.value.dateRange[1];
 
                 const res = await window.axiosAdmin.get(`bank-accounts/${accountId}/transactions`, { params });
-                account.value = res.data.account;
-                rows.value = res.data.data;
-                totalDebit.value = res.data.total_debit;
-                totalCredit.value = res.data.total_credit;
-                netBalance.value = res.data.net_balance;
+                account.value = res.account;
+                rows.value = res.data || [];
+                totalDebit.value = res.total_debit || 0;
+                totalCredit.value = res.total_credit || 0;
+                netBalance.value = res.net_balance || 0;
             } catch {
                 message.error('Failed to load transactions.');
             } finally {

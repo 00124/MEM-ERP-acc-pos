@@ -511,8 +511,8 @@ export default defineComponent({
                 if (filters.status) params.status = filters.status;
                 if (filters.search) params.search = filters.search;
                 const res = await axiosAdmin.get('party-cheques', { params });
-                cheques.value = res.data.data || [];
-                Object.assign(summary, res.data.summary || {});
+                cheques.value = res.data || [];
+                Object.assign(summary, res.summary || {});
             } catch (e) {
                 message.error('Failed to load cheques.');
             } finally {
@@ -528,9 +528,9 @@ export default defineComponent({
                 if (txnFilters.date_from) params.date_from = txnFilters.date_from;
                 if (txnFilters.date_to)   params.date_to   = txnFilters.date_to;
                 const res = await axiosAdmin.get('bank-transactions', { params });
-                transactions.value = res.data.data || [];
-                txnStats.total_deposits  = res.data.total_deposits  || 0;
-                txnStats.total_transfers = res.data.total_transfers || 0;
+                transactions.value = res.data || [];
+                txnStats.total_deposits  = res.total_deposits  || 0;
+                txnStats.total_transfers = res.total_transfers || 0;
             } catch (e) {
                 message.error('Failed to load transactions.');
             } finally {
@@ -541,7 +541,7 @@ export default defineComponent({
         const loadBankAccounts = async () => {
             try {
                 const res = await axiosAdmin.get('bank-accounts');
-                bankAccounts.value = res.data.data || res.data || [];
+                bankAccounts.value = res.data || [];
             } catch (e) {}
         };
 
@@ -550,7 +550,7 @@ export default defineComponent({
             try {
                 const ep = chequeForm.party_type === 'customer' ? 'customers' : 'suppliers';
                 const res = await axiosAdmin.get(ep + '?limit=5000&fields=xid,name');
-                parties.value = Array.isArray(res.data) ? res.data : (res.data.data || []);
+                parties.value = res.data || [];
             } catch (e) {}
             finally { loadingParties.value = false; }
         };

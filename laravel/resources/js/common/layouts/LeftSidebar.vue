@@ -523,6 +523,25 @@
                         </a-menu-item>
                     </a-sub-menu>
 
+                    <!-- Banking & Cheques -->
+                    <a-sub-menu
+                        key="banking_cheques"
+                        v-if="permsArray.includes('admin')"
+                    >
+                        <template #title>
+                            <span>
+                                <BankOutlined />
+                                <span>Banking & Cheques</span>
+                            </span>
+                        </template>
+                        <a-menu-item
+                            key="banking_dashboard"
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.banking.dashboard' }); }"
+                        >
+                            Dashboard
+                        </a-menu-item>
+                    </a-sub-menu>
+
                     <!-- Dispatches -->
                     <a-sub-menu
                         key="dispatches"
@@ -692,12 +711,6 @@
                             key="accounting_bank_accounts"
                         >
                             <BankOutlined /> Bank Accounts
-                        </a-menu-item>
-                        <a-menu-item
-                            @click="() => { menuSelected(); $router.push({ name: 'admin.banking.dashboard' }); }"
-                            key="banking_dashboard"
-                        >
-                            <AuditOutlined /> Banking & Cheques
                         </a-menu-item>
                     </a-sub-menu>
 
@@ -1249,6 +1262,7 @@ export default defineComponent({
             "hrm",
             "dispatches",
             "cheque_books",
+            "banking_cheques",
             "accounting",
         ];
         const store = useStore();

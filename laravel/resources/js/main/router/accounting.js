@@ -166,7 +166,7 @@ export default [
                 name: "admin.banking.dashboard",
                 meta: {
                     requireAuth: true,
-                    menuParent: "accounting",
+                    menuParent: "banking_cheques",
                     menuKey: () => "banking_dashboard",
                 },
             },

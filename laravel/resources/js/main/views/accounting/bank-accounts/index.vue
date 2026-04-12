@@ -269,8 +269,8 @@ export default defineComponent({
             loading.value = true;
             try {
                 const res = await window.axiosAdmin.get('bank-accounts');
-                accounts.value = res.data.data;
-                summary.value = res.data.summary;
+                accounts.value = res.data || [];
+                summary.value = res.summary || { total_banks: 0, total_balance: 0, total_in: 0, total_out: 0 };
             } catch {
                 message.error('Failed to load bank accounts.');
             } finally {
