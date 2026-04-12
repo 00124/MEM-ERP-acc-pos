@@ -192,6 +192,44 @@ export default [
                 },
             },
 
+            // Cheque Books
+            {
+                path: "cheque-books",
+                component: () =>
+                    import("../views/cheque-books/index.vue"),
+                name: "admin.cheque-books.index",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "cheque_books",
+                    menuKey: (route) => "cheque_books_list",
+                    permission: (route) => "admin",
+                },
+            },
+            {
+                path: "cheque-books/:id/cheques",
+                component: () =>
+                    import("../views/cheque-books/Cheques.vue"),
+                name: "admin.cheque-books.cheques",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "cheque_books",
+                    menuKey: (route) => "cheque_books_list",
+                    permission: (route) => "admin",
+                },
+            },
+            {
+                path: "cheque-books/report",
+                component: () =>
+                    import("../views/cheque-books/Report.vue"),
+                name: "admin.cheque-books.report",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "cheque_books",
+                    menuKey: (route) => "cheque_books_report",
+                    permission: (route) => "admin",
+                },
+            },
+
             // Purchase Returns
             {
                 path: "purchase-returns/edit/:id",

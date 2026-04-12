@@ -492,6 +492,31 @@
                         <span>Warranty &amp; Damage</span>
                     </a-menu-item>
 
+                    <!-- Cheque Books -->
+                    <a-sub-menu
+                        key="cheque_books"
+                        v-if="permsArray.includes('admin')"
+                    >
+                        <template #title>
+                            <span>
+                                <AuditOutlined />
+                                <span>Cheque Books</span>
+                            </span>
+                        </template>
+                        <a-menu-item
+                            key="cheque_books_list"
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.cheque-books.index' }); }"
+                        >
+                            Register
+                        </a-menu-item>
+                        <a-menu-item
+                            key="cheque_books_report"
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.cheque-books.report' }); }"
+                        >
+                            Cheque Report
+                        </a-menu-item>
+                    </a-sub-menu>
+
                     <!-- Dispatches -->
                     <a-sub-menu
                         key="dispatches"
@@ -1141,6 +1166,7 @@ import {
     CarOutlined,
     DollarCircleOutlined,
     SafetyOutlined,
+    AuditOutlined,
 } from "@ant-design/icons-vue";
 import { PerfectScrollbar } from "vue3-perfect-scrollbar";
 import common from "../../common/composable/common";
@@ -1172,6 +1198,7 @@ export default defineComponent({
         CarOutlined,
         DollarCircleOutlined,
         SafetyOutlined,
+        AuditOutlined,
     },
     setup(props, { emit }) {
         const {
@@ -1203,6 +1230,7 @@ export default defineComponent({
             "subscription",
             "hrm",
             "dispatches",
+            "cheque_books",
         ];
         const store = useStore();
         const route = useRoute();

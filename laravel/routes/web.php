@@ -183,6 +183,16 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::resource('sales', 'SalesController', $options);
         ApiRoute::resource('sales-returns', 'SalesReturnsController', $options);
         ApiRoute::get('verified-email', ['as' => 'api.settings.verified-email', 'uses' => 'AuthController@getVerfiedEmailSetting']);
+
+        // Cheque Books
+        ApiRoute::get('cheque-books', ['as' => 'api.cheque-books.index', 'uses' => 'ChequeBookController@index']);
+        ApiRoute::post('cheque-books', ['as' => 'api.cheque-books.store', 'uses' => 'ChequeBookController@store']);
+        ApiRoute::get('cheque-books/report', ['as' => 'api.cheque-books.report', 'uses' => 'ChequeBookController@report']);
+        ApiRoute::get('cheque-books/{id}', ['as' => 'api.cheque-books.show', 'uses' => 'ChequeBookController@show']);
+        ApiRoute::delete('cheque-books/{id}', ['as' => 'api.cheque-books.destroy', 'uses' => 'ChequeBookController@destroy']);
+        ApiRoute::get('cheque-books/{bookId}/cheques', ['as' => 'api.cheque-books.cheques', 'uses' => 'ChequeBookController@cheques']);
+        ApiRoute::post('cheques/{chequeId}/issue', ['as' => 'api.cheques.issue', 'uses' => 'ChequeBookController@issueCheque']);
+        ApiRoute::post('cheques/{chequeId}/cancel', ['as' => 'api.cheques.cancel', 'uses' => 'ChequeBookController@cancelCheque']);
     });
 });
 
