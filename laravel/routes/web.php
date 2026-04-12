@@ -184,6 +184,20 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api'], function () {
         ApiRoute::resource('sales-returns', 'SalesReturnsController', $options);
         ApiRoute::get('verified-email', ['as' => 'api.settings.verified-email', 'uses' => 'AuthController@getVerfiedEmailSetting']);
 
+        // Party Cheques (Customer/Supplier)
+        ApiRoute::get('party-cheques', ['as' => 'api.party-cheques.index', 'uses' => 'PartyChequeController@index']);
+        ApiRoute::post('party-cheques', ['as' => 'api.party-cheques.store', 'uses' => 'PartyChequeController@store']);
+        ApiRoute::delete('party-cheques/{id}', ['as' => 'api.party-cheques.destroy', 'uses' => 'PartyChequeController@destroy']);
+        ApiRoute::post('party-cheques/{id}/deposit', ['as' => 'api.party-cheques.deposit', 'uses' => 'PartyChequeController@depositToBank']);
+        ApiRoute::post('party-cheques/{id}/clear', ['as' => 'api.party-cheques.clear', 'uses' => 'PartyChequeController@clearCheque']);
+        ApiRoute::post('party-cheques/{id}/bounce', ['as' => 'api.party-cheques.bounce', 'uses' => 'PartyChequeController@bounceCheque']);
+        ApiRoute::post('party-cheques/{id}/return', ['as' => 'api.party-cheques.return', 'uses' => 'PartyChequeController@returnCheque']);
+
+        // Bank Transactions (Deposits & Transfers)
+        ApiRoute::get('bank-transactions', ['as' => 'api.bank-transactions.index', 'uses' => 'BankTransactionController@index']);
+        ApiRoute::post('bank-transactions', ['as' => 'api.bank-transactions.store', 'uses' => 'BankTransactionController@store']);
+        ApiRoute::delete('bank-transactions/{id}', ['as' => 'api.bank-transactions.destroy', 'uses' => 'BankTransactionController@destroy']);
+
         // Bank Accounts
         ApiRoute::get('bank-accounts', ['as' => 'api.bank-accounts.index', 'uses' => 'BankAccountController@index']);
         ApiRoute::post('bank-accounts', ['as' => 'api.bank-accounts.store', 'uses' => 'BankAccountController@store']);

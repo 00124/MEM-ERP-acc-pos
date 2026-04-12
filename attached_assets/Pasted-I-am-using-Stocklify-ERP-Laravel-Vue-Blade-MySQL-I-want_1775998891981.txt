@@ -1,0 +1,189 @@
+I am using Stocklify ERP (Laravel + Vue/Blade + MySQL).
+
+I want to implement a COMPLETE modern Banking & Cheque Management module based on real accounting workflows.
+
+Do NOT use traditional UI. Follow modern dashboard UI (same as POS design).
+
+========================
+
+1. Core Modules
+   ========================
+
+Create:
+
+1. Cheque Management
+2. Cheque Clearance
+3. Deposits & Transfers
+
+========================
+2. Cheque Management (Customer & Supplier)
+==========================================
+
+Track all cheques:
+
+Fields:
+
+* cheque_no
+* party_id (customer/supplier)
+* type (received / issued)
+* amount
+* issue_date
+* status (in_hand, pending, cleared, bounced, returned)
+* account_id (bank)
+
+========================
+3. Scenario Handling
+====================
+
+A. Customer Cheque Received
+
+Entry:
+Cheque in Hand Dr
+To Customer Cr
+
+Status: in_hand
+
+---
+
+B. Cheque Bounce / Return
+
+* Mark status = returned
+
+Entry:
+Customer Dr
+To Cheque in Hand Cr
+
+---
+
+C. Supplier Cheque Issued
+
+Entry:
+Supplier Dr
+To Cheque Payable Cr
+
+Status: pending
+
+---
+
+D. Cheque Clearance
+
+* Mark as cleared
+
+Entry:
+Cheque Payable Dr
+To Bank Cr
+
+---
+
+E. Cheque Deposit (Customer Cheque to Bank)
+
+Entry:
+Bank Dr
+To Cheque in Hand Cr
+
+---
+
+F. Cash Deposit
+
+Entry:
+Bank Dr
+To Cash Cr
+
+---
+
+G. Bank Transfer
+
+Entry:
+Bank A Dr
+To Bank B Cr
+
+========================
+4. Modern UI Design
+===================
+
+Create ONE unified Banking Dashboard:
+
+Sections:
+
+* Summary Cards:
+
+  * Cheques in Hand
+  * Pending Cheques
+  * Cleared Amount
+  * Bounced
+
+* Tabs:
+
+[ Cheques ]
+[ Clearance ]
+[ Deposits & Transfers ]
+
+========================
+5. Table UI
+===========
+
+Columns:
+
+* Cheque No
+* Party
+* Type
+* Amount
+* Status (badge)
+* Date
+* Action
+
+========================
+6. Actions
+==========
+
+Buttons:
+
+* Deposit to Bank
+* Clear Cheque
+* Mark Bounced
+* Return Cheque
+
+Each opens modal popup
+
+========================
+7. Payment Integration
+======================
+
+* Payment screen must support:
+
+  * Cash
+  * Bank Account
+  * Cheque
+
+* Cheque entries must be tracked here
+
+========================
+8. Reports
+==========
+
+Create:
+
+* Cheque Status Report
+* Bank Ledger
+* Pending Cheques
+* Cleared Cheques
+
+========================
+9. Rules
+========
+
+* Bank balance should only update on clearance/deposit
+* Prevent duplicate cheque numbers
+* Track status history
+
+========================
+10. Goal
+========
+
+Build a professional modern Banking module that handles:
+
+* Cheque receive & return
+* Cheque issue & clearance
+* Cash deposit & bank transfer
+
+All with clean UI and proper accounting entries.

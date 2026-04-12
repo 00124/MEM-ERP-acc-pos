@@ -159,6 +159,17 @@ export default [
                     menuKey: () => "accounting_bank_accounts",
                 },
             },
+            {
+                path: "/admin/banking",
+                component: () =>
+                    import("../views/accounting/banking/Banking.vue"),
+                name: "admin.banking.dashboard",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "accounting",
+                    menuKey: () => "banking_dashboard",
+                },
+            },
         ],
     },
 ];

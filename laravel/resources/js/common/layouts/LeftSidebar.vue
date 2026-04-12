@@ -693,6 +693,12 @@
                         >
                             <BankOutlined /> Bank Accounts
                         </a-menu-item>
+                        <a-menu-item
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.banking.dashboard' }); }"
+                            key="banking_dashboard"
+                        >
+                            <AuditOutlined /> Banking & Cheques
+                        </a-menu-item>
                     </a-sub-menu>
 
                     <a-menu-item
