@@ -7,6 +7,7 @@ use App\Models\ChartOfAccount;
 use App\Scopes\CompanyScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Vinkla\Hashids\Facades\Hashids;
 
 class BankAccountController extends Controller
 {
@@ -54,7 +55,7 @@ class BankAccountController extends Controller
 
             return [
                 'id'               => $acc->id,
-                'xid'              => hashids()->encode($acc->id),
+                'xid'              => Hashids::encode($acc->id),
                 'account_name'     => $acc->account_name,
                 'account_code'     => $acc->account_code,
                 'account_number'   => $acc->account_number,
@@ -114,18 +115,18 @@ class BankAccountController extends Controller
             'branch_name'    => $request->branch_name,
             'opening_balance'=> $request->opening_balance ?? 0,
             'description'    => $request->description,
-            'status'         => 'active',
+            'status'         => 1,
         ]);
 
         return response()->json([
             'message' => 'Bank account created successfully.',
-            'data'    => array_merge($account->toArray(), ['xid' => hashids()->encode($account->id)]),
+            'data'    => array_merge($account->toArray(), ['xid' => Hashids::encode($account->id)]),
         ], 201);
     }
 
     public function update(Request $request, $id)
     {
-        $decodedId = hashids()->decode($id)[0] ?? null;
+        $decodedId = Hashids::decode($id)[0] ?? null;
         if (!$decodedId) return response()->json(['message' => 'Not found.'], 404);
 
         $account = ChartOfAccount::where('company_id', company()->id)
@@ -154,7 +155,7 @@ class BankAccountController extends Controller
 
     public function destroy($id)
     {
-        $decodedId = hashids()->decode($id)[0] ?? null;
+        $decodedId = Hashids::decode($id)[0] ?? null;
         if (!$decodedId) return response()->json(['message' => 'Not found.'], 404);
 
         $account = ChartOfAccount::where('company_id', company()->id)
@@ -174,7 +175,7 @@ class BankAccountController extends Controller
 
     public function transactions(Request $request, $id)
     {
-        $decodedId = hashids()->decode($id)[0] ?? null;
+        $decodedId = Hashids::decode($id)[0] ?? null;
         if (!$decodedId) return response()->json(['message' => 'Not found.'], 404);
 
         $account = ChartOfAccount::where('company_id', company()->id)
@@ -233,7 +234,7 @@ class BankAccountController extends Controller
 
         return response()->json([
             'account'      => [
-                'xid'            => hashids()->encode($account->id),
+                'xid'            => Hashids::encode($account->id),
                 'account_name'   => $account->account_name,
                 'account_number' => $account->account_number,
                 'branch_name'    => $account->branch_name,
@@ -254,7 +255,7 @@ class BankAccountController extends Controller
             ->orderBy('account_name')
             ->get(['id', 'account_name', 'account_code', 'account_number'])
             ->map(fn($a) => [
-                'xid'          => hashids()->encode($a->id),
+                'xid'          => Hashids::encode($a->id),
                 'account_name' => $a->account_name,
                 'account_code' => $a->account_code,
                 'account_number'=> $a->account_number,
