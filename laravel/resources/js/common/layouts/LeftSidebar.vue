@@ -492,6 +492,37 @@
                         <span>Warranty &amp; Damage</span>
                     </a-menu-item>
 
+                    <!-- Dispatches -->
+                    <a-sub-menu
+                        key="dispatches"
+                        v-if="permsArray.includes('dispatches_view') || permsArray.includes('admin')"
+                    >
+                        <template #title>
+                            <span>
+                                <CarOutlined />
+                                <span>Dispatches</span>
+                            </span>
+                        </template>
+                        <a-menu-item
+                            key="dispatches_list"
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.stock.dispatches.index' }); }"
+                        >
+                            Dispatch List
+                        </a-menu-item>
+                        <a-menu-item
+                            key="dispatches_create"
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.stock.dispatches.create' }); }"
+                        >
+                            Create Dispatch
+                        </a-menu-item>
+                        <a-menu-item
+                            key="dispatches_report"
+                            @click="() => { menuSelected(); $router.push({ name: 'admin.stock.dispatches.report' }); }"
+                        >
+                            Delivery Report
+                        </a-menu-item>
+                    </a-sub-menu>
+
                     <a-menu-item
                         v-if="
                             (permsArray.includes('pos_view') ||
@@ -1171,6 +1202,7 @@ export default defineComponent({
             "cash_bank",
             "subscription",
             "hrm",
+            "dispatches",
         ];
         const store = useStore();
         const route = useRoute();

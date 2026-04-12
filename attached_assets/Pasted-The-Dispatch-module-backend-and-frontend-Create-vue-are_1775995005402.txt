@@ -1,0 +1,118 @@
+The Dispatch module backend and frontend (Create.vue) are already implemented, but the Dispatch form is still NOT visible in the UI.
+
+This issue has not been resolved with previous fixes. Now perform a full deep debug and fix the ROOT CAUSE.
+
+========================
+CRITICAL DEBUG STEPS
+====================
+
+1. VERIFY FRONTEND ROUTER (Vue)
+
+* Open router/index.js (or router file)
+* Confirm this route EXACTLY exists:
+
+{
+path: '/dispatch/create',
+name: 'dispatch.create',
+component: () => import('@/views/dispatch/Create.vue')
+}
+
+* Log all routes in console to confirm registration
+
+2. FORCE ROUTE TEST
+
+Add temporary test route:
+
+{
+path: '/test-route',
+component: {
+template: '<h1>TEST ROUTE WORKING</h1>'
+}
+}
+
+Then open:
+http://localhost:3000/test-route
+
+IF THIS DOES NOT WORK → router is broken
+
+========================
+3. VERIFY router-view (VERY IMPORTANT)
+======================================
+
+Check main layout (App.vue or Layout.vue)
+
+Ensure this exists:
+
+<router-view />
+
+If missing → NO page will render
+
+========================
+4. COMPONENT LOAD DEBUG
+
+Inside Create.vue:
+
+onMounted(() => {
+console.log("DISPATCH CREATE LOADED");
+});
+
+Check browser console:
+
+IF NOT PRINTING → component is NOT loading
+
+========================
+5. CHECK FILE PATH (COMMON ISSUE)
+
+Ensure file exists EXACTLY at:
+
+/src/views/dispatch/Create.vue
+
+Check case sensitivity:
+Dispatch vs dispatch (Linux is case sensitive)
+
+========================
+6. BUILD / CACHE ISSUE
+
+* Stop dev server
+
+* Run fresh build:
+  npm run dev OR npm run build
+
+* Clear browser cache manually
+
+========================
+7. NETWORK TAB DEBUG
+
+Open DevTools → Network
+
+* Click Dispatch menu
+* Check if Create.vue chunk is loading
+
+IF NOT LOADING → dynamic import issue
+
+========================
+8. PERMISSION / AUTH BLOCK
+
+* Temporarily disable ALL permission middleware
+* Ensure route is publicly accessible
+
+========================
+9. FALLBACK TEST (MANDATORY)
+
+Replace Create.vue content with:
+
+<template>
+  <h1>Dispatch Working</h1>
+</template>
+
+If STILL NOT VISIBLE → issue is NOT in component, it's router/layout
+
+========================
+10. FINAL GOAL
+==============
+
+* /dispatch/create must open the page
+* Create.vue must render
+* No blank screen, no hidden UI
+
+Fix ROOT CAUSE, not workaround.
