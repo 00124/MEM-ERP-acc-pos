@@ -54,6 +54,8 @@ class StaffMember extends BaseModel implements AuthenticatableContract, JWTSubje
         'shift_id',
     ];
 
+    protected $visible_extra = ['incentive_type', 'incentive_value'];
+
     protected $appends = [
         'xid',
         'x_company_id',
@@ -100,6 +102,7 @@ class StaffMember extends BaseModel implements AuthenticatableContract, JWTSubje
         'department_id' => Hash::class . ':hash',
         'designation_id' => Hash::class . ':hash',
         'shift_id' => Hash::class . ':hash',
+        'incentive_value' => 'double',
     ];
 
     protected static function boot()

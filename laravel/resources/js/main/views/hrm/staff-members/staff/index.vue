@@ -396,7 +396,7 @@ export default {
         const departmentUrl = "departments?fields=id,xid,name";
         const desigantionUrl = "designations?fields=id,xid,name";
         const urlParams =
-            "?fields=id,xid,user_type,name,email,profile_image,profile_image_url,is_walkin_customer,phone,address,shipping_address,status,created_at,details{opening_balance,opening_balance_type,credit_period,credit_limit,due_amount,warehouse_id,x_warehouse_id},details:warehouse{id,xid,name},role_id,role{id,xid,name,display_name},warehouse_id,x_warehouse_id,warehouse{xid,name},userWarehouses{user_id,x_user_id,warehouse_id,x_warehouse_id},department_id,x_department_id,department{id,xid,name},designation_id,x_designation_id,designation{id,xid,name},shift_id,x_shift_id,shift{id,xid,name}";
+            "?fields=id,xid,user_type,name,email,profile_image,profile_image_url,is_walkin_customer,phone,address,shipping_address,status,created_at,incentive_type,incentive_value,details{opening_balance,opening_balance_type,credit_period,credit_limit,due_amount,warehouse_id,x_warehouse_id},details:warehouse{id,xid,name},role_id,role{id,xid,name,display_name},warehouse_id,x_warehouse_id,warehouse{xid,name},userWarehouses{user_id,x_user_id,warehouse_id,x_warehouse_id},department_id,x_department_id,department{id,xid,name},designation_id,x_designation_id,designation{id,xid,name},shift_id,x_shift_id,shift{id,xid,name}";
 
         const searchStatus = ref(undefined);
         const activeTabKey = ref("all");

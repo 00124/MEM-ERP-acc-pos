@@ -349,6 +349,38 @@
                 </a-col>
             </a-row>
 
+            <!-- Salesman Incentive Settings -->
+            <a-row v-if="formData.user_type == 'staff_members'" :gutter="16">
+                <a-col :xs="24" :sm="24" :md="12" :lg="12">
+                    <a-form-item label="Incentive Type" name="incentive_type">
+                        <a-select
+                            v-model:value="formData.incentive_type"
+                            placeholder="Select incentive type"
+                            :allowClear="true"
+                        >
+                            <a-select-option value="percentage">Percentage of Sale</a-select-option>
+                            <a-select-option value="fixed">Fixed Amount per Sale</a-select-option>
+                            <a-select-option value="profit_based">Profit Based (%)</a-select-option>
+                        </a-select>
+                    </a-form-item>
+                </a-col>
+                <a-col :xs="24" :sm="24" :md="12" :lg="12">
+                    <a-form-item
+                        label="Incentive Value"
+                        name="incentive_value"
+                        :help="formData.incentive_type === 'percentage' || formData.incentive_type === 'profit_based' ? 'Enter % e.g. 2 for 2%' : 'Fixed amount per completed sale'"
+                    >
+                        <a-input-number
+                            v-model:value="formData.incentive_value"
+                            :min="0"
+                            :precision="2"
+                            style="width: 100%"
+                            :disabled="!formData.incentive_type"
+                        />
+                    </a-form-item>
+                </a-col>
+            </a-row>
+
             <a-row :gutter="16">
                 <a-col :xs="24" :sm="24" :md="24" :lg="24">
                     <a-form-item

@@ -21,6 +21,8 @@ const fields = () => {
     department_id: undefined,
     designation_id: undefined,
     shift_id: undefined,
+    incentive_type: undefined,
+    incentive_value: 0,
   };
 
   const columns = [

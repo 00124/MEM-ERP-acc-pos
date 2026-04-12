@@ -50,6 +50,28 @@ export default [
                     permission: "basic_salaries_view",
                 },
             },
+            {
+                path: "incentives",
+                component: () =>
+                    import("../../views/hrm/incentives/index.vue"),
+                name: "admin.hrm.incentives.index",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "payrolls",
+                    menuKey: (route) => "incentives",
+                },
+            },
+            {
+                path: "incentive-summary",
+                component: () =>
+                    import("../../views/hrm/incentives/Summary.vue"),
+                name: "admin.hrm.incentive_summary.index",
+                meta: {
+                    requireAuth: true,
+                    menuParent: "payrolls",
+                    menuKey: (route) => "incentives",
+                },
+            },
         ],
     },
 ];

@@ -3,6 +3,7 @@
 namespace App\Traits;
 
 use App\Classes\Common;
+use App\Classes\CommonHrm;
 use App\Classes\Notify;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -245,6 +246,9 @@ trait OrderTraits
         // Auto-generate journal entry for this order
         $order->refresh();
         AccountingService::handleOrder($order);
+
+        // Calculate and store salesman incentive for completed sales
+        CommonHrm::calculateAndStoreIncentive($order);
 
         return $order;
     }

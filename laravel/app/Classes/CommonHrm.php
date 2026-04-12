@@ -4,6 +4,8 @@ namespace App\Classes;
 
 use App\Models\StaffMember;
 use App\Models\User;
+use App\Models\Order;
+use App\Models\Hrm\Incentive;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Examyou\RestAPI\Exceptions\ApiException;
@@ -594,5 +596,80 @@ class CommonHrm
             'total_unpaid_leaves' => $totalUnPaidLeave,
             'holiday_count' => $totalHolidayCount,
         ];
+    }
+
+    /**
+     * Calculate and store incentive for a completed sale.
+     * Called from OrderTraits::stored() for sales and pos-sales.
+     *
+     * Incentive types:
+     *   percentage   → order.total × (incentive_value / 100)
+     *   fixed        → incentive_value (flat amount per sale)
+     *   profit_based → order gross profit (cost_net snapshot) × (incentive_value / 100)
+     */
+    public static function calculateAndStoreIncentive(Order $order): void
+    {
+        // Only completed / paid sales that have a salesman attached
+        if (!in_array($order->order_type, ['sales', 'pos-sales'])) {
+            return;
+        }
+
+        if (in_array($order->order_status, ['cancelled', 'returned'])) {
+            return;
+        }
+
+        $staffUserId = $order->staff_user_id;
+        if (!$staffUserId) {
+            return;
+        }
+
+        // Load salesman from users table (without the staff_members scope)
+        $salesman = \DB::table('users')
+            ->where('id', $staffUserId)
+            ->whereNotNull('incentive_type')
+            ->first(['id', 'incentive_type', 'incentive_value', 'company_id']);
+
+        if (!$salesman || !$salesman->incentive_type || $salesman->incentive_value <= 0) {
+            return;
+        }
+
+        $incentiveAmount = 0;
+
+        if ($salesman->incentive_type === 'percentage') {
+            $incentiveAmount = (float)$order->total * ($salesman->incentive_value / 100);
+        } elseif ($salesman->incentive_type === 'fixed') {
+            $incentiveAmount = (float)$salesman->incentive_value;
+        } elseif ($salesman->incentive_type === 'profit_based') {
+            // Sum cost_net from order_items to calculate profit
+            $totalCost = \DB::table('order_items')
+                ->where('order_id', $order->id)
+                ->sum(\DB::raw('quantity * cost_net'));
+
+            $profit = max(0, (float)$order->total - (float)$totalCost);
+            $incentiveAmount = $profit * ($salesman->incentive_value / 100);
+        }
+
+        if ($incentiveAmount <= 0) {
+            return;
+        }
+
+        // Avoid duplicate incentive for the same order
+        $exists = Incentive::withoutGlobalScope(\App\Scopes\CompanyScope::class)
+            ->where('order_id', $order->id)
+            ->where('user_id', $staffUserId)
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        $incentive = new Incentive();
+        $incentive->company_id = $order->company_id;
+        $incentive->user_id    = $staffUserId;
+        $incentive->order_id   = $order->id;
+        $incentive->amount     = round($incentiveAmount, 4);
+        $incentive->type       = $salesman->incentive_type;
+        $incentive->date       = $order->order_date ? Carbon::parse($order->order_date)->toDateString() : Carbon::today()->toDateString();
+        $incentive->save();
     }
 }

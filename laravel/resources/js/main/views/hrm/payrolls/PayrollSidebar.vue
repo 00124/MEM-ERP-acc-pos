@@ -48,6 +48,15 @@
                     </template>
                     {{ $t("menu.increments_promotions") }}
                 </a-menu-item>
+                <a-menu-item
+                    @click="$router.push({ name: 'admin.hrm.incentives.index' })"
+                    key="incentives"
+                >
+                    <template #icon>
+                        <TrophyOutlined />
+                    </template>
+                    Incentives
+                </a-menu-item>
             </a-menu>
         </perfect-scrollbar>
     </div>
@@ -60,6 +69,7 @@ import {
     TabletOutlined,
     BarsOutlined,
     DollarCircleOutlined,
+    TrophyOutlined,
 } from "@ant-design/icons-vue";
 import { useRoute } from "vue-router";
 import { useStore } from "vuex";
@@ -71,6 +81,7 @@ export default defineComponent({
         TabletOutlined,
         BarsOutlined,
         DollarCircleOutlined,
+        TrophyOutlined,
     },
     setup() {
         const { appSetting, user, permsArray, appModules, appType } = common();

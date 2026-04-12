@@ -233,5 +233,9 @@ ApiRoute::group(['namespace' => 'App\Http\Controllers\Api\Hrm'], function () {
         ApiRoute::post('payrolls/update-status', ['as' => 'api.payrolls.update-status', 'uses' => 'PayrollController@updateStatus']);
         ApiRoute::resource('payrolls', 'PayrollController',  ['as' => 'api', 'except' => ['index']]);
         ApiRoute::resource('basic-salaries', 'BasicSalaryController', $options);
+
+        // Incentives
+        ApiRoute::get('hrm/incentives', ['as' => 'api.hrm.incentives.index', 'uses' => 'IncentiveController@index']);
+        ApiRoute::get('hrm/incentive-summary', ['as' => 'api.hrm.incentive_summary', 'uses' => 'IncentiveController@summary']);
     });
 });

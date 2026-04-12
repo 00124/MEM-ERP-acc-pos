@@ -178,6 +178,38 @@ Dual-rate MAC is fully implemented (April 2026):
 
 ---
 
+## HRM — Salesman Incentive System
+
+Fully implemented (April 2026).
+
+### New DB Columns
+- **`users.incentive_type`** — enum: `percentage`, `fixed`, `profit_based` (nullable)
+- **`users.incentive_value`** — decimal: the rate or amount
+
+### New Table: `hrm_incentives`
+- `company_id`, `user_id` (employee), `order_id` (sale), `amount`, `type`, `date`
+
+### How It Works
+- **Setup**: Edit a staff member → set Incentive Type + Incentive Value in the form
+- **Auto-trigger**: Every time a sale is saved (sales, pos-sales), `CommonHrm::calculateAndStoreIncentive()` automatically runs
+- **Calculation rules**:
+  - `percentage` → `order.total × (value / 100)`
+  - `fixed` → flat `value` per sale
+  - `profit_based` → `(order.total − cost_net) × (value / 100)` using MAC cost snapshot
+- **Exclusions**: cancelled/returned orders are skipped; duplicate records prevented per order
+- **Payroll integration**: When payroll is generated, incentives for the month are automatically included as a `PayrollComponent` (type: `incentives`) and added to `net_salary`
+
+### API Endpoints
+- `GET /api/v1/hrm/incentives` — all incentive records with filters (user_id, date_from, date_to, month, year)
+- `GET /api/v1/hrm/incentive-summary?month=&year=` — per-employee totals for a given month
+
+### Frontend
+- **Staff Edit form**: Incentive Type dropdown + Incentive Value input added to staff member add/edit drawer
+- **HRM → Payrolls → Incentives**: List page with employee/date filters
+- **HRM → Payrolls → Monthly Summary**: Per-employee summary with grand total stat
+
+---
+
 ## External Packages (Laravel)
 
 | Package | Purpose |

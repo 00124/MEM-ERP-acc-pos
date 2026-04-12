@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Hrm;
 
 use App\Http\Controllers\ApiBaseController;
 use App\Models\Expense;
+use App\Models\Hrm\Incentive;
 use App\Http\Requests\Api\Hrm\Payroll\IndexRequest;
 use App\Http\Requests\Api\Hrm\Payroll\StoreRequest;
 use App\Http\Requests\Api\Hrm\Payroll\UpdateRequest;
@@ -180,9 +181,33 @@ class PayrollController extends ApiBaseController
                     $totalExpenseAmount += $allExpense->amount;
                 }
 
+                // Incentive Payroll Component
+                PayrollComponent::where('payroll_id', $payroll->id)
+                    ->where('type', 'incentives')
+                    ->delete();
+
+                $totalIncentiveAmount = 0;
+                $totalIncentive = Incentive::withoutGlobalScope(\App\Scopes\CompanyScope::class)
+                    ->where('user_id', $allUser->user_id)
+                    ->whereMonth('date', $month)
+                    ->whereYear('date', $year)
+                    ->sum('amount');
+
+                if ($totalIncentive > 0) {
+                    $newIncentiveComponent = new PayrollComponent();
+                    $newIncentiveComponent->payroll_id = $payroll->id;
+                    $newIncentiveComponent->user_id = $allUser->user_id;
+                    $newIncentiveComponent->name = "Sales Incentive";
+                    $newIncentiveComponent->amount = $totalIncentive;
+                    $newIncentiveComponent->is_earning = 1;
+                    $newIncentiveComponent->type = 'incentives';
+                    $newIncentiveComponent->save();
+                    $totalIncentiveAmount = $totalIncentive;
+                }
+
                 $payroll->pre_payment_amount = $totalPrePaymentAmount;
-                $payroll->expense_amount = $totalExpenseAmount;
-                $payroll->net_salary = $netSalary - $totalPrePaymentAmount + $totalExpenseAmount;
+                $payroll->expense_amount = $totalExpenseAmount + $totalIncentiveAmount;
+                $payroll->net_salary = $netSalary - $totalPrePaymentAmount + $totalExpenseAmount + $totalIncentiveAmount;
                 $payroll->save();
             }
         }
