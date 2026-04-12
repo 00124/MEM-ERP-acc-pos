@@ -151,7 +151,7 @@ export default [
                 meta: {
                     requireAuth: true,
                     menuParent: "dispatches",
-                    menuKey: (route) => "dispatches",
+                    menuKey: (route) => "dispatches_list",
                     permission: (route) => "dispatches_view",
                 },
             },
@@ -163,7 +163,7 @@ export default [
                 meta: {
                     requireAuth: true,
                     menuParent: "dispatches",
-                    menuKey: (route) => "dispatches",
+                    menuKey: (route) => "dispatches_create",
                     permission: (route) => "dispatches_view",
                 },
             },
@@ -175,7 +175,7 @@ export default [
                 meta: {
                     requireAuth: true,
                     menuParent: "dispatches",
-                    menuKey: (route) => "dispatches",
+                    menuKey: (route) => "dispatches_list",
                     permission: (route) => "dispatches_view",
                 },
             },
@@ -187,7 +187,7 @@ export default [
                 meta: {
                     requireAuth: true,
                     menuParent: "dispatches",
-                    menuKey: (route) => "dispatches",
+                    menuKey: (route) => "dispatches_report",
                     permission: (route) => "dispatches_view",
                 },
             },

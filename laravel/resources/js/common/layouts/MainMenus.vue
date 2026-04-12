@@ -210,7 +210,7 @@
                         <template #title>Dispatches</template>
                         <a-menu-item
                                 @click="() => { menuSelected(); $router.push({ name: 'admin.stock.dispatches.index' }); }"
-                                key="dispatches"
+                                key="dispatches_list"
                         >
                                 Dispatch List
                         </a-menu-item>
