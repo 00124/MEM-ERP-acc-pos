@@ -1249,6 +1249,7 @@ export default defineComponent({
             "hrm",
             "dispatches",
             "cheque_books",
+            "accounting",
         ];
         const store = useStore();
         const route = useRoute();

@@ -1,0 +1,131 @@
+Both Bank Account module and Banking Dashboard (Cheque + Deposits + Transfers) are fully implemented in backend and frontend code.
+
+However, NONE of the frontend screens are visible in the UI.
+
+This is a CRITICAL frontend integration issue. Perform a FULL system debug and fix the root cause.
+
+========================
+
+1. VERIFY VUE ROUTER REGISTRATION (ROOT ISSUE)
+   ========================
+
+Open router/index.js (or equivalent router file)
+
+Ensure ALL routes are properly registered:
+
+{
+path: '/bank-accounts',
+name: 'bank.accounts',
+component: () => import('@/views/banking/BankAccounts.vue')
+},
+{
+path: '/banking',
+name: 'banking.dashboard',
+component: () => import('@/views/banking/BankingDashboard.vue')
+}
+
+IMPORTANT:
+
+* Confirm file paths are correct
+* Confirm no typo in folder names (banking vs Banking)
+* Log all routes in console
+
+========================
+2. VERIFY COMPONENT FILES EXIST
+===============================
+
+Ensure files exist EXACTLY:
+
+/src/views/banking/BankAccounts.vue
+/src/views/banking/BankingDashboard.vue
+
+Check case sensitivity (Linux issue)
+
+========================
+3. VERIFY router-view (CRITICAL)
+================================
+
+Open main layout (App.vue or Layout.vue)
+
+Ensure:
+
+<router-view />
+
+If missing → NOTHING will render
+
+========================
+4. ADD TEST ROUTE (MANDATORY)
+=============================
+
+Add:
+
+{
+path: '/test',
+component: { template: '<h1>ROUTER WORKING</h1>' }
+}
+
+Open:
+/test
+
+IF NOT WORKING → router is broken globally
+
+========================
+5. DEBUG COMPONENT LOAD
+=======================
+
+Inside BankingDashboard.vue:
+
+onMounted(() => {
+console.log("BANKING DASHBOARD LOADED");
+});
+
+Check browser console
+
+If NOT printing → component not loading
+
+========================
+6. CHECK SIDEBAR MENU LINKING
+=============================
+
+Ensure menu links:
+
+<router-link to="/banking">Banking</router-link> <router-link to="/bank-accounts">Bank Accounts</router-link>
+
+========================
+7. BUILD / CACHE ISSUE
+======================
+
+* Stop server
+
+* Run:
+  npm run dev
+
+* Hard reload browser
+
+========================
+8. NETWORK TAB CHECK
+====================
+
+Open DevTools → Network
+
+Click menu:
+
+* Check if .vue chunk loads
+* If not → dynamic import broken
+
+========================
+9. PERMISSION / AUTH BLOCK
+==========================
+
+* Temporarily disable ALL permission middleware
+* Ensure routes are accessible
+
+========================
+10. FINAL GOAL
+==============
+
+* /banking should open Banking Dashboard
+* /bank-accounts should open Bank Accounts screen
+* UI must render properly
+
+Fix ROOT cause, not workaround.
